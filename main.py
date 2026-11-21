@@ -6,6 +6,7 @@ Modern CustomTkinter desktop interface for downloading YouTube videos and playli
 import os
 import sys
 import re
+import json
 import shutil
 import threading
 import queue
@@ -31,6 +32,54 @@ def resource_path(relative_path):
     except AttributeError:
         base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
+
+
+def get_config_path():
+    """Returns path to user settings JSON file in AppData."""
+    appdata = os.environ.get("APPDATA") or os.path.expanduser("~")
+    config_dir = os.path.join(appdata, "YouTubeMP3Downloader")
+    os.makedirs(config_dir, exist_ok=True)
+    return os.path.join(config_dir, "config.json")
+
+
+def load_user_config():
+    """Load persistent settings like last save folder."""
+    cfg_file = get_config_path()
+    default_dir = os.path.join(os.path.expanduser("~"), "Downloads")
+    if not os.path.isdir(default_dir):
+        default_dir = os.getcwd()
+
+    defaults = {
+        "save_dir": default_dir,
+        "bitrate": "320 kbps",
+    }
+    if os.path.exists(cfg_file):
+        try:
+            with open(cfg_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                if isinstance(data, dict):
+                    saved_dir = data.get("save_dir")
+                    if saved_dir and os.path.isdir(saved_dir):
+                        defaults["save_dir"] = os.path.normpath(saved_dir)
+                    saved_bitrate = data.get("bitrate")
+                    if saved_bitrate in ["128 kbps", "192 kbps", "320 kbps"]:
+                        defaults["bitrate"] = saved_bitrate
+        except Exception:
+            pass
+    return defaults
+
+
+def save_user_config(save_dir, bitrate=None):
+    """Save persistent settings."""
+    try:
+        cfg_file = get_config_path()
+        data = {"save_dir": save_dir}
+        if bitrate:
+            data["bitrate"] = bitrate
+        with open(cfg_file, "w", encoding="utf-8") as f:
+            json.dump(data, f, indent=2)
+    except Exception:
+        pass
 
 
 def find_ffmpeg_location():
@@ -86,8 +135,8 @@ class YouTubeMP3Downloader(ctk.CTk):
         super().__init__()
 
         self.title("YouTube to MP3 Downloader")
-        self.geometry("740x650")
-        self.minsize(680, 580)
+        self.geometry("740x660")
+        self.minsize(580, 480)
 
         # Set window icon
         icon_path = resource_path("app_icon.ico")
@@ -103,18 +152,16 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.download_queue = queue.Queue()
         self.ffmpeg_location = find_ffmpeg_location()
 
-        # Default download path (Windows Downloads)
-        default_folder = os.path.join(os.path.expanduser("~"), "Downloads")
-        if not os.path.exists(default_folder):
-            default_folder = os.getcwd()
-        self.download_path_var = tk.StringVar(value=default_folder)
+        # Load saved user settings (Remember last folder & default to highest bitrate 320 kbps)
+        self.user_cfg = load_user_config()
+        self.download_path_var = tk.StringVar(value=self.user_cfg["save_dir"])
+        self.bitrate_var = tk.StringVar(value=self.user_cfg.get("bitrate", "320 kbps"))
 
         # URL variable
         self.url_var = tk.StringVar()
         self.url_var.trace_add("write", self._on_url_change)
 
-        # Options
-        self.bitrate_var = tk.StringVar(value="192 kbps")
+        # Playlist Options
         self.playlist_mode_var = tk.StringVar(value="auto")  # "auto", "playlist", "single"
         self.embed_metadata_var = tk.BooleanVar(value=True)
 
@@ -127,19 +174,23 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Main Scrollable / Container Frame
-        self.main_frame = ctk.CTkFrame(self, corner_radius=15, fg_color=("gray92", "#1e1e24"))
-        self.main_frame.grid(row=0, column=0, sticky="nsew", padx=20, pady=20)
-        self.main_frame.grid_columnconfigure(0, weight=1)
+        # Main Scrollable Frame - ensures all controls, buttons & inputs adapt gracefully to any window size
+        self.scroll_frame = ctk.CTkScrollableFrame(
+            self,
+            corner_radius=15,
+            fg_color=("gray92", "#1e1e24"),
+        )
+        self.scroll_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
+        self.scroll_frame.grid_columnconfigure(0, weight=1)
 
         # Header Title & Subtitle
-        header_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        header_frame.pack(fill="x", padx=20, pady=(20, 10))
+        header_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        header_frame.pack(fill="x", padx=10, pady=(15, 8))
 
         title_label = ctk.CTkLabel(
             header_frame,
             text="🎵 YouTube to MP3 Downloader",
-            font=ctk.CTkFont(size=24, weight="bold"),
+            font=ctk.CTkFont(size=23, weight="bold"),
         )
         title_label.pack(anchor="w")
 
@@ -152,8 +203,8 @@ class YouTubeMP3Downloader(ctk.CTk):
         subtitle_label.pack(anchor="w", pady=(2, 0))
 
         # ---------------- Section 1: URL Input ----------------
-        url_frame = ctk.CTkFrame(self.main_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        url_frame.pack(fill="x", padx=20, pady=10)
+        url_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
+        url_frame.pack(fill="x", padx=10, pady=8)
         url_frame.grid_columnconfigure(0, weight=1)
 
         url_label = ctk.CTkLabel(
@@ -161,7 +212,7 @@ class YouTubeMP3Downloader(ctk.CTk):
             text="YouTube Video or Playlist URL:",
             font=ctk.CTkFont(size=13, weight="bold"),
         )
-        url_label.grid(row=0, column=0, columnspan=3, sticky="w", padx=15, pady=(12, 5))
+        url_label.grid(row=0, column=0, columnspan=3, sticky="w", padx=15, pady=(10, 5))
 
         self.url_entry = ctk.CTkEntry(
             url_frame,
@@ -175,7 +226,7 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.paste_btn = ctk.CTkButton(
             url_frame,
             text="📋 Paste",
-            width=85,
+            width=80,
             height=38,
             command=self.paste_url,
             font=ctk.CTkFont(size=12),
@@ -185,7 +236,7 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.clear_btn = ctk.CTkButton(
             url_frame,
             text="✕ Clear",
-            width=75,
+            width=70,
             height=38,
             fg_color=("gray60", "gray35"),
             hover_color=("gray50", "gray45"),
@@ -195,25 +246,37 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.clear_btn.grid(row=1, column=2, padx=(4, 15), pady=(0, 12))
 
         # ---------------- Section 2: Download Options ----------------
-        options_frame = ctk.CTkFrame(self.main_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        options_frame.pack(fill="x", padx=20, pady=10)
+        options_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
+        options_frame.pack(fill="x", padx=10, pady=8)
         options_frame.grid_columnconfigure(1, weight=1)
 
-        # Quality selector
+        # Quality selector (Defaulted to 320 kbps - Highest Available)
         bitrate_label = ctk.CTkLabel(
             options_frame,
             text="Audio Bitrate:",
             font=ctk.CTkFont(size=13, weight="bold"),
         )
-        bitrate_label.grid(row=0, column=0, sticky="w", padx=15, pady=(12, 8))
+        bitrate_label.grid(row=0, column=0, sticky="w", padx=15, pady=(12, 6))
 
         self.bitrate_menu = ctk.CTkOptionMenu(
             options_frame,
-            values=["128 kbps", "192 kbps", "320 kbps"],
+            values=["320 kbps (Best)", "192 kbps (Standard)", "128 kbps (Compact)"],
             variable=self.bitrate_var,
-            width=140,
+            width=180,
+            command=self._on_bitrate_changed,
         )
-        self.bitrate_menu.grid(row=0, column=1, sticky="w", padx=10, pady=(12, 8))
+        # Normalize display if needed
+        cur_b = self.bitrate_var.get()
+        if "320" in cur_b:
+            self.bitrate_var.set("320 kbps (Best)")
+        elif "192" in cur_b:
+            self.bitrate_var.set("192 kbps (Standard)")
+        elif "128" in cur_b:
+            self.bitrate_var.set("128 kbps (Compact)")
+        else:
+            self.bitrate_var.set("320 kbps (Best)")
+
+        self.bitrate_menu.grid(row=0, column=1, sticky="w", padx=10, pady=(12, 6))
 
         # Playlist mode selector
         playlist_label = ctk.CTkLabel(
@@ -221,10 +284,10 @@ class YouTubeMP3Downloader(ctk.CTk):
             text="Playlist Behavior:",
             font=ctk.CTkFont(size=13, weight="bold"),
         )
-        playlist_label.grid(row=1, column=0, sticky="w", padx=15, pady=8)
+        playlist_label.grid(row=1, column=0, sticky="w", padx=15, pady=6)
 
         playlist_options_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
-        playlist_options_frame.grid(row=1, column=1, sticky="w", padx=10, pady=8)
+        playlist_options_frame.grid(row=1, column=1, sticky="w", padx=10, pady=6)
 
         self.rb_auto = ctk.CTkRadioButton(
             playlist_options_frame,
@@ -256,16 +319,16 @@ class YouTubeMP3Downloader(ctk.CTk):
             text="Embed ID3 tags (Title, Artist, Album) & Thumbnail Cover",
             variable=self.embed_metadata_var,
         )
-        self.metadata_chk.grid(row=2, column=0, columnspan=2, sticky="w", padx=15, pady=(8, 12))
+        self.metadata_chk.grid(row=2, column=0, columnspan=2, sticky="w", padx=15, pady=(6, 12))
 
         # ---------------- Section 3: Save Location ----------------
-        save_frame = ctk.CTkFrame(self.main_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        save_frame.pack(fill="x", padx=20, pady=10)
+        save_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
+        save_frame.pack(fill="x", padx=10, pady=8)
         save_frame.grid_columnconfigure(0, weight=1)
 
         save_label = ctk.CTkLabel(
             save_frame,
-            text="Save Location:",
+            text="Save Location (Remembers your chosen folder):",
             font=ctk.CTkFont(size=13, weight="bold"),
         )
         save_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=15, pady=(10, 4))
@@ -282,7 +345,7 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.browse_btn = ctk.CTkButton(
             save_frame,
             text="📁 Browse...",
-            width=100,
+            width=95,
             height=36,
             command=self.browse_directory,
             font=ctk.CTkFont(size=12),
@@ -290,8 +353,8 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.browse_btn.grid(row=1, column=1, padx=(0, 15), pady=(0, 12))
 
         # ---------------- Section 4: Progress & Status ----------------
-        progress_frame = ctk.CTkFrame(self.main_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        progress_frame.pack(fill="x", padx=20, pady=10)
+        progress_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
+        progress_frame.pack(fill="x", padx=10, pady=8)
 
         self.status_label = ctk.CTkLabel(
             progress_frame,
@@ -301,10 +364,10 @@ class YouTubeMP3Downloader(ctk.CTk):
             wraplength=640,
             justify="left",
         )
-        self.status_label.pack(anchor="w", padx=15, pady=(12, 6))
+        self.status_label.pack(anchor="w", padx=15, pady=(10, 5))
 
         self.progress_bar = ctk.CTkProgressBar(progress_frame, height=12)
-        self.progress_bar.pack(fill="x", padx=15, pady=(4, 8))
+        self.progress_bar.pack(fill="x", padx=15, pady=(4, 6))
         self.progress_bar.set(0)
 
         self.detail_label = ctk.CTkLabel(
@@ -313,11 +376,11 @@ class YouTubeMP3Downloader(ctk.CTk):
             font=ctk.CTkFont(size=11),
             text_color=("gray50", "gray65"),
         )
-        self.detail_label.pack(anchor="w", padx=15, pady=(0, 12))
+        self.detail_label.pack(anchor="w", padx=15, pady=(0, 10))
 
         # ---------------- Action Buttons ----------------
-        action_frame = ctk.CTkFrame(self.main_frame, fg_color="transparent")
-        action_frame.pack(fill="x", padx=20, pady=(10, 20))
+        action_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        action_frame.pack(fill="x", padx=10, pady=(10, 25))
 
         self.download_btn = ctk.CTkButton(
             action_frame,
@@ -334,7 +397,7 @@ class YouTubeMP3Downloader(ctk.CTk):
             action_frame,
             text="📂 Open Folder",
             height=46,
-            width=130,
+            width=125,
             font=ctk.CTkFont(size=13),
             command=self.open_target_folder,
             fg_color=("gray60", "gray35"),
@@ -346,7 +409,7 @@ class YouTubeMP3Downloader(ctk.CTk):
         """Notify user if ffmpeg was not detected."""
         if not self.ffmpeg_location:
             self.status_label.configure(
-                text="⚠️ Warning: FFmpeg not detected. MP3 conversion requires FFmpeg installed.",
+                text="⚠️ Warning: FFmpeg not detected. MP3 conversion requires FFmpeg.",
                 text_color="#e07a5f",
             )
         else:
@@ -359,6 +422,10 @@ class YouTubeMP3Downloader(ctk.CTk):
         url = self.url_var.get().strip()
         if "list=" in url and self.playlist_mode_var.get() == "auto":
             self.detail_label.configure(text="ℹ️ Detected playlist link in URL.")
+
+    def _on_bitrate_changed(self, choice):
+        """Save selected bitrate."""
+        save_user_config(self.download_path_var.get(), choice)
 
     def paste_url(self):
         """Read clipboard and paste into URL entry."""
@@ -381,13 +448,15 @@ class YouTubeMP3Downloader(ctk.CTk):
             self.detail_label.configure(text="")
 
     def browse_directory(self):
-        """Open directory picker dialog."""
+        """Open directory picker dialog and save user preference."""
         selected = filedialog.askdirectory(
             initialdir=self.download_path_var.get(),
             title="Select Destination Folder",
         )
         if selected:
-            self.download_path_var.set(os.path.normpath(selected))
+            norm = os.path.normpath(selected)
+            self.download_path_var.set(norm)
+            save_user_config(norm, self.bitrate_var.get())
 
     def open_target_folder(self):
         """Open destination folder in Windows File Explorer."""
@@ -473,8 +542,12 @@ class YouTubeMP3Downloader(ctk.CTk):
                 messagebox.showerror("Error", f"Could not create destination directory:\n{e}")
                 return
 
-        # Parse selected bitrate (e.g. '192 kbps' -> '192')
-        bitrate_str = self.bitrate_var.get().split()[0]
+        # Ensure user config remembers directory
+        save_user_config(save_dir, self.bitrate_var.get())
+
+        # Parse selected bitrate (e.g. '320 kbps (Best)' -> '320')
+        bitrate_str = re.findall(r"\d+", self.bitrate_var.get())
+        bitrate_val = bitrate_str[0] if bitrate_str else "320"
 
         self._set_ui_state(True)
         self.progress_bar.set(0)
@@ -486,7 +559,7 @@ class YouTubeMP3Downloader(ctk.CTk):
             args=(
                 url,
                 save_dir,
-                bitrate_str,
+                bitrate_val,
                 self.playlist_mode_var.get(),
                 self.embed_metadata_var.get(),
                 self.ffmpeg_location,
@@ -548,27 +621,20 @@ class YouTubeMP3Downloader(ctk.CTk):
                 pass
 
             def warning(self, msg):
-                # Don't spam warnings, but log if track is unavailable
                 if "unavailable" in msg.lower() or "private" in msg.lower():
                     self.q.put(("warning", msg[:100]))
 
             def error(self, msg):
-                # We handle errors via exception or list
                 pass
 
         # Configure yt-dlp parameters
-        is_playlist = False
         if playlist_mode == "playlist":
             noplaylist = False
         elif playlist_mode == "single":
             noplaylist = True
         else:  # "auto"
-            # If list is in url, inspect it
             noplaylist = "list=" not in url
 
-        # Output template logic
-        # For playlist: Save in dedicated folder <save_dir>/<playlist_title>/<track_number> - <title>.mp3
-        # For single: <save_dir>/<title>.mp3
         outtmpl = os.path.join(save_dir, "%(title)s.%(ext)s")
         if not noplaylist:
             outtmpl = os.path.join(
@@ -601,7 +667,7 @@ class YouTubeMP3Downloader(ctk.CTk):
             "progress_hooks": [ytdl_hook],
             "logger": MyCustomLogger(self.download_queue),
             "noplaylist": noplaylist,
-            "ignoreerrors": True,  # Continues playlist even if individual tracks are private/deleted
+            "ignoreerrors": True,
             "quiet": True,
             "no_warnings": False,
             "writethumbnail": embed_metadata,
@@ -612,7 +678,6 @@ class YouTubeMP3Downloader(ctk.CTk):
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                # Pre-fetch info to get track count
                 self.download_queue.put(("detail", "Extracting playlist/video information..."))
                 try:
                     info = ydl.extract_info(url, download=False)
@@ -628,7 +693,6 @@ class YouTubeMP3Downloader(ctk.CTk):
 
                 if "entries" in info:
                     entries = list(info["entries"])
-                    # Filter None entries (unavailable videos)
                     valid_entries = [e for e in entries if e is not None]
                     total_items[0] = max(1, len(valid_entries))
                     playlist_title = info.get("title", "YouTube Playlist")
@@ -640,10 +704,8 @@ class YouTubeMP3Downloader(ctk.CTk):
                     video_title = info.get("title", "Video")
                     self.download_queue.put(("status", f"Found track: '{video_title}'"))
 
-                # Define a hook or counter to increment current_item_index
                 def each_entry_hook(d):
                     if d.get("status") == "downloading" and d.get("filename"):
-                        # If playlist index is present
                         p_idx = d.get("info_dict", {}).get("playlist_index")
                         if p_idx:
                             current_item_index[0] = p_idx
@@ -652,7 +714,6 @@ class YouTubeMP3Downloader(ctk.CTk):
 
                 ydl_opts["progress_hooks"].append(each_entry_hook)
 
-                # Execute actual download
                 download_result = ydl.download([url])
 
                 if download_result != 0 and len(skipped_items) > 0:
