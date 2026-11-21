@@ -1,0 +1,14 @@
+# Python build & virtualenv
+__pycache__/
+*.py[cod]
+*$py.class
+*.spec
+build/
+
+# Do not commit the large temporary build output, keep release ready if needed or exclude
+# Typically dist/ can be excluded from git and hosted under GitHub Releases
+dist/
+
+# Logs & temp
+*.log
+.system_generated/
