@@ -24,7 +24,7 @@ except ImportError:
 
 import yt_dlp
 
-APP_VERSION = "1.2.3"
+APP_VERSION = "1.2.2"
 GITHUB_REPO = "bombdevgif/youtube-mp3-downloader"
 
 # Apple HIG Hex Color Palette

@@ -1,4 +1,4 @@
-# 🎵 YouTube Downloader (v1.2.3)
+# 🎵 YouTube Downloader (v1.2.2)
 
 A clean, modern Windows desktop application for downloading YouTube videos and playlists as **MP3 audio** or **MP4 video** files, styled with Apple's Human Interface Guidelines.
 
@@ -21,9 +21,11 @@ A clean, modern Windows desktop application for downloading YouTube videos and p
 2. Download `YouTubeMP3Downloader.exe`.
 3. Double-click to run! (No installation required).
 
+> **Note on Windows SmartScreen**: Because this app is an open-source project without an enterprise certificate, Windows SmartScreen may display an unrecognized app notice on first launch. Simply click **"More info"** → **"Run anyway"** (or right-click `YouTubeMP3Downloader.exe` → **Properties** → check **"Unblock"**). The binary is signed with an Authenticode certificate for `bombdevgif`.
+
 ---
 
-## ✨ Features in v1.2.3
+## ✨ Features in v1.2.2
 
 - **Light & Dark Mode Switch (Dark by Default)**:
   - Apple-style native toggle switch right in the header toolbar (`🌙 Dark Mode` / `☀️ Light Mode`).
