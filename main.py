@@ -8,11 +8,11 @@ import os
 import sys
 import re
 import json
+import time
 import shutil
 import threading
 import queue
 import urllib.request
-import urllib.error
 import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox
@@ -22,7 +22,16 @@ try:
 except ImportError:
     import tkinter as ctk
 
-import yt_dlp
+_YTDL_MODULE = None
+
+
+def get_ytdl():
+    """Lazy load yt_dlp on background worker thread to keep GUI startup near-instant."""
+    global _YTDL_MODULE
+    if _YTDL_MODULE is None:
+        import yt_dlp
+        _YTDL_MODULE = yt_dlp
+    return _YTDL_MODULE
 
 APP_VERSION = "1.2.2"
 GITHUB_REPO = "bombdevgif/youtube-mp3-downloader"
@@ -96,8 +105,15 @@ def get_config_path():
     return os.path.join(config_dir, "config.json")
 
 
+_CONFIG_CACHE = None
+
+
 def load_user_config():
-    """Load persistent settings like last save folder."""
+    """Load persistent settings with in-memory caching to avoid redundant disk reads."""
+    global _CONFIG_CACHE
+    if _CONFIG_CACHE is not None:
+        return _CONFIG_CACHE.copy()
+
     cfg_file = get_config_path()
     default_dir = os.path.join(os.path.expanduser("~"), "Downloads")
     if not os.path.isdir(default_dir):
@@ -128,14 +144,19 @@ def load_user_config():
                         defaults["appearance_mode"] = data.get("appearance_mode")
         except Exception:
             pass
-    return defaults
+
+    _CONFIG_CACHE = defaults
+    return defaults.copy()
 
 
 def save_user_config(save_dir, format_mode=None, bitrate=None, resolution=None, appearance_mode=None):
-    """Save persistent settings."""
+    """Save persistent settings and update in-memory cache."""
+    global _CONFIG_CACHE
     try:
         cfg_file = get_config_path()
-        data = load_user_config()
+        if _CONFIG_CACHE is None:
+            load_user_config()
+        data = _CONFIG_CACHE
         data["save_dir"] = save_dir
         if format_mode:
             data["format_mode"] = format_mode
@@ -149,23 +170,31 @@ def save_user_config(save_dir, format_mode=None, bitrate=None, resolution=None, 
             json.dump(data, f, indent=2)
     except Exception:
         pass
-    except Exception:
-        pass
+
+
+_CACHED_FFMPEG_LOC = None
 
 
 def find_ffmpeg_location():
-    """Detect ffmpeg binary location (bundled inside app, local folder, PATH, or WinGet)."""
+    """Detect ffmpeg binary location with caching and fast path lookup."""
+    global _CACHED_FFMPEG_LOC
+    if _CACHED_FFMPEG_LOC is not None:
+        return _CACHED_FFMPEG_LOC
+
     bundled_ffmpeg = resource_path("ffmpeg.exe")
     if os.path.isfile(bundled_ffmpeg):
-        return os.path.dirname(os.path.abspath(bundled_ffmpeg))
+        _CACHED_FFMPEG_LOC = os.path.dirname(os.path.abspath(bundled_ffmpeg))
+        return _CACHED_FFMPEG_LOC
 
     app_dir = os.path.dirname(os.path.abspath(__file__))
     if os.path.isfile(os.path.join(app_dir, "ffmpeg.exe")):
+        _CACHED_FFMPEG_LOC = app_dir
         return app_dir
 
     path_ffmpeg = shutil.which("ffmpeg")
     if path_ffmpeg:
-        return os.path.dirname(os.path.abspath(path_ffmpeg))
+        _CACHED_FFMPEG_LOC = os.path.dirname(os.path.abspath(path_ffmpeg))
+        return _CACHED_FFMPEG_LOC
 
     user_profile = os.environ.get("USERPROFILE", "")
     candidates = [
@@ -186,13 +215,20 @@ def find_ffmpeg_location():
     ]
     for candidate in candidates:
         if os.path.isfile(os.path.join(candidate, "ffmpeg.exe")):
+            _CACHED_FFMPEG_LOC = candidate
             return candidate
 
     winget_packages = os.path.join(user_profile, "AppData", "Local", "Microsoft", "WinGet", "Packages")
     if os.path.isdir(winget_packages):
-        for root, _, files in os.walk(winget_packages):
-            if "ffmpeg.exe" in files:
-                return root
+        try:
+            for entry in os.scandir(winget_packages):
+                if entry.is_dir() and "ffmpeg" in entry.name.lower():
+                    for root, _, files in os.walk(entry.path):
+                        if "ffmpeg.exe" in files:
+                            _CACHED_FFMPEG_LOC = root
+                            return root
+        except Exception:
+            pass
 
     return None
 
@@ -319,8 +355,10 @@ class YouTubeMP3Downloader(ctk.CTk):
                 pass
 
         self.is_downloading = False
+        self.is_cancelled = threading.Event()
         self.download_queue = queue.Queue()
         self.ffmpeg_location = find_ffmpeg_location()
+        self.protocol("WM_DELETE_WINDOW", self._on_close)
 
         # Load user persistent settings
         self.user_cfg = load_user_config()
@@ -858,7 +896,8 @@ class YouTubeMP3Downloader(ctk.CTk):
                     total_length = response.getheader("content-length")
                     total_length = int(total_length) if total_length else None
                     downloaded = 0
-                    chunk_size = 1024 * 64
+                    chunk_size = 1024 * 256  # 256 KB streaming buffer
+                    last_update_time = 0.0
 
                     while True:
                         chunk = response.read(chunk_size)
@@ -866,11 +905,13 @@ class YouTubeMP3Downloader(ctk.CTk):
                             break
                         downloaded += len(chunk)
                         out_file.write(chunk)
-                        if total_length:
+                        now = time.perf_counter()
+                        if total_length and (now - last_update_time >= 0.1 or downloaded >= total_length):
+                            last_update_time = now
                             progress = downloaded / total_length
+                            mb_down = downloaded / 1048576.0
+                            mb_tot = total_length / 1048576.0
                             self.download_queue.put(("progress", progress))
-                            mb_down = downloaded / (1024 * 1024)
-                            mb_tot = total_length / (1024 * 1024)
                             self.download_queue.put(
                                 ("status_metric", (f"Downloading {latest_tag}", f"{mb_down:.1f} / {mb_tot:.1f} MB ({progress*100:.0f}%)"))
                             )
@@ -972,10 +1013,20 @@ del "%~f0"
         self.metadata_switch.configure(state=state)
         self.segmented_playlist.configure(state=state)
 
+    def _on_close(self):
+        """Cleanly handle application window closing."""
+        if self.is_downloading:
+            if not messagebox.askyesno("Exit Confirmation", "A download is currently in progress.\nAre you sure you want to cancel and exit?"):
+                return
+            self.is_cancelled.set()
+        self.destroy()
+
     def _check_queue(self):
+        processed = 0
         try:
-            while True:
+            while processed < 50:
                 msg_type, data = self.download_queue.get_nowait()
+                processed += 1
                 if msg_type == "status":
                     self.status_label.configure(text=data, text_color=APPLE_TEXT)
                 elif msg_type == "status_metric":
@@ -1026,7 +1077,8 @@ del "%~f0"
         except queue.Empty:
             pass
 
-        self.after(100, self._check_queue)
+        poll_interval = 40 if (self.is_downloading or processed > 0) else 250
+        self.after(poll_interval, self._check_queue)
 
     def start_download_thread(self):
         url = self.url_var.get().strip()
@@ -1059,6 +1111,7 @@ del "%~f0"
         res_matches = re.findall(r"\d+", self.resolution_var.get())
         res_height = int(res_matches[0]) if res_matches else None
 
+        self.is_cancelled.clear()
         self._set_ui_state(True)
         self.progress_bar.set(0)
         self.status_label.configure(text="Fetching metadata...", text_color=APPLE_TEXT)
@@ -1085,12 +1138,24 @@ del "%~f0"
         skipped_items = []
         current_item_index = [0]
         total_items = [1]
+        last_progress_time = [0.0]
+        last_metric = ["", ""]
 
         def ytdl_hook(d):
+            if self.is_cancelled.is_set():
+                raise Exception("Download cancelled by user")
+
             status = d.get("status")
             if status == "downloading":
+                now = time.perf_counter()
                 total_bytes = d.get("total_bytes") or d.get("total_bytes_estimate") or 0
                 downloaded = d.get("downloaded_bytes", 0)
+
+                # Throttle progress events to at most once per 80ms (avoids flooding UI queue)
+                if (now - last_progress_time[0]) < 0.08 and total_bytes > 0 and downloaded < total_bytes:
+                    return
+
+                last_progress_time[0] = now
                 percent_str = ""
                 if total_bytes > 0:
                     fraction = min(1.0, max(0.0, downloaded / total_bytes))
@@ -1103,7 +1168,7 @@ del "%~f0"
                     percent_str = f"{fraction * 100:.0f}%"
 
                 speed = d.get("speed")
-                speed_str = f"{speed / 1024 / 1024:.1f} MB/s" if speed else ""
+                speed_str = f"{speed / 1048576.0:.1f} MB/s" if speed else ""
                 eta = d.get("eta")
                 eta_str = f"ETA {eta}s" if eta else ""
 
@@ -1111,11 +1176,14 @@ del "%~f0"
                     status_text = f"Item {current_item_index[0]} of {total_items[0]}"
                 else:
                     filename = os.path.basename(d.get("filename", "stream"))
-                    clean_name = re.sub(r"\.[^.]+$", "", filename)
+                    clean_name = filename.rsplit(".", 1)[0]
                     status_text = f"{clean_name[:42]}"
 
                 metric_text = " • ".join(filter(None, [percent_str, speed_str, eta_str]))
-                self.download_queue.put(("status_metric", (status_text, metric_text)))
+                if (status_text, metric_text) != (last_metric[0], last_metric[1]):
+                    last_metric[0] = status_text
+                    last_metric[1] = metric_text
+                    self.download_queue.put(("status_metric", (status_text, metric_text)))
 
             elif status == "finished":
                 if format_mode == "MP3 Audio":
@@ -1132,7 +1200,8 @@ del "%~f0"
             def debug(self, msg): pass
             def info(self, msg): pass
             def warning(self, msg):
-                if "unavailable" in msg.lower() or "private" in msg.lower():
+                msg_lower = msg.lower()
+                if "unavailable" in msg_lower or "private" in msg_lower:
                     self.q.put(("warning", msg[:80]))
             def error(self, msg): pass
 
@@ -1197,6 +1266,7 @@ del "%~f0"
             ydl_opts["ffmpeg_location"] = ffmpeg_loc
 
         try:
+            yt_dlp = get_ytdl()
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                 self.download_queue.put(("detail", "Connecting to YouTube..."))
                 try:
@@ -1209,10 +1279,13 @@ del "%~f0"
                     self.download_queue.put(("error", "No video or playlist found at this link."))
                     return
 
-                if "entries" in info:
-                    entries = list(info["entries"])
-                    valid_entries = [e for e in entries if e is not None]
-                    total_items[0] = max(1, len(valid_entries))
+                raw_entries = info.get("entries")
+                if raw_entries:
+                    if isinstance(raw_entries, list):
+                        total_items[0] = max(1, sum(1 for e in raw_entries if e is not None))
+                    else:
+                        entries_list = [e for e in raw_entries if e is not None]
+                        total_items[0] = max(1, len(entries_list))
                     p_title = info.get("title", "Playlist")
                     self.download_queue.put(
                         ("status", f"Playlist: {p_title} ({total_items[0]} items)")
@@ -1235,10 +1308,14 @@ del "%~f0"
                 else:
                     self.download_queue.put(("finish", ""))
 
-        except yt_dlp.utils.DownloadError as de:
-            self.download_queue.put(("error", f"Download failed:\n{str(de)}"))
+                del info
+
         except Exception as e:
-            self.download_queue.put(("error", f"Unexpected error:\n{str(e)}"))
+            if "cancelled" in str(e).lower():
+                self.download_queue.put(("status", "Download cancelled"))
+                self.download_queue.put(("finish", ""))
+            else:
+                self.download_queue.put(("error", f"Download failed:\n{str(e)}"))
 
 
 def main():
