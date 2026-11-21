@@ -24,8 +24,26 @@ ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
 
+def resource_path(relative_path):
+    """Get absolute path to resource, works for dev and for PyInstaller."""
+    try:
+        base_path = sys._MEIPASS
+    except AttributeError:
+        base_path = os.path.dirname(os.path.abspath(__file__))
+    return os.path.join(base_path, relative_path)
+
+
 def find_ffmpeg_location():
-    """Detect ffmpeg binary location on system or winget packages."""
+    """Detect ffmpeg binary location (bundled inside app, local folder, PATH, or WinGet)."""
+    # 0. Check PyInstaller bundled directory / current application directory
+    bundled_ffmpeg = resource_path("ffmpeg.exe")
+    if os.path.isfile(bundled_ffmpeg):
+        return os.path.dirname(os.path.abspath(bundled_ffmpeg))
+
+    app_dir = os.path.dirname(os.path.abspath(__file__))
+    if os.path.isfile(os.path.join(app_dir, "ffmpeg.exe")):
+        return app_dir
+
     # 1. Standard PATH check
     path_ffmpeg = shutil.which("ffmpeg")
     if path_ffmpeg:
@@ -61,15 +79,6 @@ def find_ffmpeg_location():
                 return root
 
     return None
-
-
-def resource_path(relative_path):
-    """Get absolute path to resource, works for dev and for PyInstaller."""
-    try:
-        base_path = sys._MEIPASS
-    except AttributeError:
-        base_path = os.path.dirname(os.path.abspath(__file__))
-    return os.path.join(base_path, relative_path)
 
 
 class YouTubeMP3Downloader(ctk.CTk):
