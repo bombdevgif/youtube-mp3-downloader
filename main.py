@@ -24,7 +24,7 @@ except ImportError:
 
 import yt_dlp
 
-APP_VERSION = "1.2.0"
+APP_VERSION = "1.2.3"
 GITHUB_REPO = "bombdevgif/youtube-mp3-downloader"
 
 # Apple HIG Hex Color Palette
@@ -108,6 +108,7 @@ def load_user_config():
         "format_mode": "MP3 Audio",
         "bitrate": "320 kbps (Best)",
         "resolution": "1080p (FHD)",
+        "appearance_mode": "Dark",
     }
     if os.path.exists(cfg_file):
         try:
@@ -123,12 +124,14 @@ def load_user_config():
                         defaults["bitrate"] = data.get("bitrate")
                     if data.get("resolution"):
                         defaults["resolution"] = data.get("resolution")
+                    if data.get("appearance_mode") in ["Dark", "Light"]:
+                        defaults["appearance_mode"] = data.get("appearance_mode")
         except Exception:
             pass
     return defaults
 
 
-def save_user_config(save_dir, format_mode=None, bitrate=None, resolution=None):
+def save_user_config(save_dir, format_mode=None, bitrate=None, resolution=None, appearance_mode=None):
     """Save persistent settings."""
     try:
         cfg_file = get_config_path()
@@ -140,8 +143,12 @@ def save_user_config(save_dir, format_mode=None, bitrate=None, resolution=None):
             data["bitrate"] = bitrate
         if resolution:
             data["resolution"] = resolution
+        if appearance_mode:
+            data["appearance_mode"] = appearance_mode
         with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
+    except Exception:
+        pass
     except Exception:
         pass
 
@@ -250,6 +257,7 @@ class UpdateDialog(ctk.CTkToplevel):
             font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             fg_color=APPLE_ENTRY_BG,
             border_color=APPLE_BORDER,
+            text_color=APPLE_TEXT,
             border_width=1,
             corner_radius=8,
             wrap="word",
@@ -321,6 +329,12 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.bitrate_var = tk.StringVar(value=self.user_cfg.get("bitrate", "320 kbps (Best)"))
         self.resolution_var = tk.StringVar(value=self.user_cfg.get("resolution", "1080p (FHD)"))
 
+        # Appearance mode (Dark mode is default)
+        saved_mode = self.user_cfg.get("appearance_mode", "Dark")
+        self.appearance_mode_var = tk.StringVar(value=saved_mode)
+        ctk.set_appearance_mode(saved_mode)
+        self.dark_mode_var = tk.BooleanVar(value=(saved_mode == "Dark"))
+
         # URL variable
         self.url_var = tk.StringVar()
         self.url_var.trace_add("write", self._on_url_change)
@@ -371,6 +385,24 @@ class YouTubeMP3Downloader(ctk.CTk):
             pady=3,
         )
         self.version_pill.pack(side="left", padx=(10, 0))
+
+        # Apple-style Theme Switch (Dark Mode default)
+        is_dark = self.dark_mode_var.get()
+        self.theme_switch = ctk.CTkSwitch(
+            top_bar,
+            text="🌙 Dark Mode" if is_dark else "☀️ Light Mode",
+            variable=self.dark_mode_var,
+            onvalue=True,
+            offvalue=False,
+            command=self._on_theme_toggle,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            text_color=APPLE_TEXT,
+            progress_color=APPLE_BLUE,
+            width=46,
+            height=24,
+            corner_radius=12,
+        )
+        self.theme_switch.pack(side="right", padx=(12, 0))
 
         self.update_status_pill = ctk.CTkLabel(
             top_bar,
@@ -735,6 +767,20 @@ class YouTubeMP3Downloader(ctk.CTk):
             fg_color=APPLE_BORDER,
         )
         divider.pack(fill="x", padx=16)
+
+    def _on_theme_toggle(self):
+        is_dark = self.dark_mode_var.get()
+        mode = "Dark" if is_dark else "Light"
+        ctk.set_appearance_mode(mode)
+        self.appearance_mode_var.set(mode)
+        self.theme_switch.configure(text="🌙 Dark Mode" if is_dark else "☀️ Light Mode")
+        save_user_config(
+            self.download_path_var.get(),
+            format_mode=self.format_mode_var.get(),
+            bitrate=self.bitrate_var.get(),
+            resolution=self.resolution_var.get(),
+            appearance_mode=mode,
+        )
 
     def _on_format_changed(self, value):
         self.format_mode_var.set(value)

@@ -1,4 +1,4 @@
-# 🎵 YouTube Downloader (v1.2.0)
+# 🎵 YouTube Downloader (v1.2.3)
 
 A clean, modern Windows desktop application for downloading YouTube videos and playlists as **MP3 audio** or **MP4 video** files, styled with Apple's Human Interface Guidelines.
 
@@ -23,8 +23,12 @@ A clean, modern Windows desktop application for downloading YouTube videos and p
 
 ---
 
-## ✨ Features in v1.2.0
+## ✨ Features in v1.2.3
 
+- **Light & Dark Mode Switch (Dark by Default)**:
+  - Apple-style native toggle switch right in the header toolbar (`🌙 Dark Mode` / `☀️ Light Mode`).
+  - Seamlessly transforms cards, text, entries, and borders with full contrast.
+  - Remembers your chosen theme automatically across sessions.
 - **Dual Format Support: MP3 Audio & MP4 Video**:
   - Segmented control to seamlessly switch between **MP3 Audio** and **MP4 Video**.
   - **Resolution Selector**: Choose from `Best Available`, `2160p (4K)`, `1440p (2K)`, `1080p (FHD)`, `720p (HD)`, or `480p (SD)`.
@@ -38,6 +42,6 @@ A clean, modern Windows desktop application for downloading YouTube videos and p
   - Playlist tracks are organized into dedicated subfolders named after the playlist title, prefixed with track numbers (`01 - Track Title.mp4` / `.mp3`).
 - **Automatic ID3 & Video Metadata Tagging**: Embeds title, artist/creator tags, and thumbnail cover art.
 - **Remembers Your Preferences**:
-  - Automatically remembers your selected output folder, preferred format, bitrate, and resolution between launches.
+  - Automatically remembers your selected output folder, preferred format, bitrate, resolution, and theme mode between launches.
 - **Automatic In-App Updates**:
-  - Directly updates to new releases without browser downloads or manual extraction.
+  - Pop-up modal with changelog and a direct **Install Update & Restart** button that downloads and restarts the app automatically without manual installation.

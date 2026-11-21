@@ -1,17 +1,10 @@
-name: Build and Release
+name: Build Standalone (Manual)
 
 on:
-  push:
-    branches:
-      - main
-    paths-ignore:
-      - 'README.md'
-      - '.gitignore'
-      - 'version.json'
   workflow_dispatch:
     inputs:
       version:
-        description: 'Specific version tag (e.g. 1.0.2). Leave empty for auto-increment.'
+        description: 'Specific version tag (e.g. 1.2.3).'
         required: false
         default: ''
 
