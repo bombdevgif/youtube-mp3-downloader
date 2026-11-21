@@ -1,6 +1,6 @@
-# 🎵 YouTube to MP3 Downloader
+# 🎵 YouTube Downloader (v1.2.0)
 
-A clean, modern Windows desktop application for downloading YouTube videos and playlists directly into high-fidelity MP3 audio files.
+A clean, modern Windows desktop application for downloading YouTube videos and playlists as **MP3 audio** or **MP4 video** files, styled with Apple's Human Interface Guidelines.
 
 ![Application Icon](app_icon.png)
 
@@ -8,9 +8,9 @@ A clean, modern Windows desktop application for downloading YouTube videos and p
 
 **No Python, FFmpeg, or extra tools required!** Everything is bundled directly into the executable:
 - Full Python runtime
-- Modern Dark UI (`CustomTkinter`)
+- Modern Apple HIG UI (`CustomTkinter`)
 - Extraction engine (`yt-dlp`)
-- Audio conversion & metadata tools (`FFmpeg`, `ffprobe`, `mutagen`, `Pillow`)
+- Audio & Video conversion tools (`FFmpeg`, `ffprobe`, `mutagen`, `Pillow`)
 - **Seamless In-App Auto-Updater**: Detects new releases on GitHub and downloads/updates directly inside the app!
 
 ---
@@ -23,24 +23,21 @@ A clean, modern Windows desktop application for downloading YouTube videos and p
 
 ---
 
-## ✨ Features
+## ✨ Features in v1.2.0
 
-- **Automatic In-App Updates**:
-  - Whenever the application launches, it automatically checks the GitHub repository for newer releases.
-  - If a newer version exists, a dialog appears showing release notes.
-  - Clicking **Update Now** downloads the new executable directly inside the app and restarts into the new version seamlessly without manual browser visits or folder extractions.
-- **Auto-Versioning & Automated GitHub Releases**:
-  - Every push to GitHub triggers a GitHub Action workflow that automatically increments the patch version (e.g., `1.0.1` -> `1.0.2`), builds the single-file binary with bundled FFmpeg, and publishes a new GitHub Release.
-- **Adaptive Responsive UI**:
-  - Automatically adjusts to any window dimensions (maximized, resized, or compact) with a scrollable container so the **Start Download** button and controls are always reachable.
-- **Remembers Selected Folder**:
-  - Automatically saves and reloads your previously chosen destination folder between sessions.
-- **Highest Bitrate by Default**:
-  - Defaults to **320 kbps (Best)** audio quality.
+- **Dual Format Support: MP3 Audio & MP4 Video**:
+  - Segmented control to seamlessly switch between **MP3 Audio** and **MP4 Video**.
+  - **Resolution Selector**: Choose from `Best Available`, `2160p (4K)`, `1440p (2K)`, `1080p (FHD)`, `720p (HD)`, or `480p (SD)`.
+  - **Bitrate Selector**: Choose between `320 kbps (Best)`, `192 kbps (Standard)`, or `128 kbps (Compact)` when downloading MP3s.
+- **Apple Human Interface Guidelines Design**:
+  - Inset grouped cards, hairline borders, rich dark surfaces, and native typography.
+  - Non-intrusive status pills in the toolbar (`✓ Up to date` or update notification).
 - **Single Videos & Full Playlists**:
   - Automatically detects playlists.
   - Option to download either the entire playlist or just a single video (even if the link contains `&list=`).
-  - Playlist tracks are organized into dedicated subfolders named after the playlist title, prefixed with track numbers (`01 - Track Title.mp3`).
-- **Automatic ID3 Tagging & Artwork**: Embeds artist, title, album tags, and thumbnail cover art directly into the MP3.
-- **Asynchronous & Non-Blocking**: Runs downloads in background threads with live progress bars, speed, ETA, and percentage counters.
-- **Resilient**: Skips deleted or private videos in playlists without halting the download batch.
+  - Playlist tracks are organized into dedicated subfolders named after the playlist title, prefixed with track numbers (`01 - Track Title.mp4` / `.mp3`).
+- **Automatic ID3 & Video Metadata Tagging**: Embeds title, artist/creator tags, and thumbnail cover art.
+- **Remembers Your Preferences**:
+  - Automatically remembers your selected output folder, preferred format, bitrate, and resolution between launches.
+- **Automatic In-App Updates**:
+  - Directly updates to new releases without browser downloads or manual extraction.

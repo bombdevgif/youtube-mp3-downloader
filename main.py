@@ -1,6 +1,7 @@
 """
-YouTube MP3 Downloader - Desktop GUI Application
+YouTube Downloader - Desktop GUI Application (MP3 Audio & MP4 Video)
 macOS / Apple Human Interface Guidelines aesthetic design.
+Version 1.2.0
 """
 
 import os
@@ -23,7 +24,7 @@ except ImportError:
 
 import yt_dlp
 
-APP_VERSION = "1.0.1"
+APP_VERSION = "1.2.0"
 GITHUB_REPO = "bombdevgif/youtube-mp3-downloader"
 
 # Apple HIG Hex Color Palette
@@ -75,7 +76,7 @@ def get_current_version():
 
 
 def parse_version_tuple(v_str):
-    """Parse version string like 'v1.0.3' or '1.0.3' into tuple (1, 0, 3)."""
+    """Parse version string like 'v1.2.0' or '1.2.0' into tuple (1, 2, 0)."""
     clean = v_str.lstrip("v").strip()
     parts = clean.split(".")
     res = []
@@ -104,7 +105,9 @@ def load_user_config():
 
     defaults = {
         "save_dir": default_dir,
+        "format_mode": "MP3 Audio",
         "bitrate": "320 kbps (Best)",
+        "resolution": "1080p (FHD)",
     }
     if os.path.exists(cfg_file):
         try:
@@ -114,21 +117,29 @@ def load_user_config():
                     saved_dir = data.get("save_dir")
                     if saved_dir and os.path.isdir(saved_dir):
                         defaults["save_dir"] = os.path.normpath(saved_dir)
-                    saved_bitrate = data.get("bitrate")
-                    if saved_bitrate:
-                        defaults["bitrate"] = saved_bitrate
+                    if data.get("format_mode") in ["MP3 Audio", "MP4 Video"]:
+                        defaults["format_mode"] = data.get("format_mode")
+                    if data.get("bitrate"):
+                        defaults["bitrate"] = data.get("bitrate")
+                    if data.get("resolution"):
+                        defaults["resolution"] = data.get("resolution")
         except Exception:
             pass
     return defaults
 
 
-def save_user_config(save_dir, bitrate=None):
+def save_user_config(save_dir, format_mode=None, bitrate=None, resolution=None):
     """Save persistent settings."""
     try:
         cfg_file = get_config_path()
-        data = {"save_dir": save_dir}
+        data = load_user_config()
+        data["save_dir"] = save_dir
+        if format_mode:
+            data["format_mode"] = format_mode
         if bitrate:
             data["bitrate"] = bitrate
+        if resolution:
+            data["resolution"] = resolution
         with open(cfg_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=2)
     except Exception:
@@ -203,7 +214,6 @@ class UpdateDialog(ctk.CTkToplevel):
         )
         card.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Header with icon
         header_row = ctk.CTkFrame(card, fg_color="transparent")
         header_row.pack(fill="x", padx=20, pady=(20, 8))
 
@@ -228,14 +238,13 @@ class UpdateDialog(ctk.CTkToplevel):
 
         lbl_sub = ctk.CTkLabel(
             title_box,
-            text="A new version of YouTube MP3 Downloader is ready to install.",
+            text="A new version of YouTube Downloader is ready to install.",
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             text_color=APPLE_SECONDARY,
             anchor="w",
         )
         lbl_sub.pack(anchor="w")
 
-        # Release notes text
         notes_box = ctk.CTkTextbox(
             card,
             font=ctk.CTkFont(family=FONT_FAMILY, size=11),
@@ -249,7 +258,6 @@ class UpdateDialog(ctk.CTkToplevel):
         notes_box.insert("1.0", release_notes or "Stability and performance improvements.")
         notes_box.configure(state="disabled")
 
-        # Actions
         btn_frame = ctk.CTkFrame(card, fg_color="transparent")
         btn_frame.pack(fill="x", padx=20, pady=(10, 18))
 
@@ -290,12 +298,11 @@ class YouTubeMP3Downloader(ctk.CTk):
         super().__init__()
 
         self.current_version = get_current_version()
-        self.title("YouTube to MP3")
-        self.geometry("740x670")
-        self.minsize(580, 500)
+        self.title("YouTube Downloader")
+        self.geometry("740x700")
+        self.minsize(580, 520)
         self.configure(fg_color=APPLE_BG)
 
-        # Set window icon
         icon_path = resource_path("app_icon.ico")
         if os.path.exists(icon_path):
             try:
@@ -303,15 +310,16 @@ class YouTubeMP3Downloader(ctk.CTk):
             except Exception:
                 pass
 
-        # Download & Worker state
         self.is_downloading = False
         self.download_queue = queue.Queue()
         self.ffmpeg_location = find_ffmpeg_location()
 
-        # User persistent settings
+        # Load user persistent settings
         self.user_cfg = load_user_config()
         self.download_path_var = tk.StringVar(value=self.user_cfg["save_dir"])
+        self.format_mode_var = tk.StringVar(value=self.user_cfg.get("format_mode", "MP3 Audio"))
         self.bitrate_var = tk.StringVar(value=self.user_cfg.get("bitrate", "320 kbps (Best)"))
+        self.resolution_var = tk.StringVar(value=self.user_cfg.get("resolution", "1080p (FHD)"))
 
         # URL variable
         self.url_var = tk.StringVar()
@@ -332,7 +340,6 @@ class YouTubeMP3Downloader(ctk.CTk):
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Scrollable container styled like macOS System Settings
         self.scroll_frame = ctk.CTkScrollableFrame(
             self,
             corner_radius=0,
@@ -347,13 +354,12 @@ class YouTubeMP3Downloader(ctk.CTk):
 
         header_title = ctk.CTkLabel(
             top_bar,
-            text="YouTube to MP3",
+            text="YouTube Downloader",
             font=ctk.CTkFont(family=FONT_DISPLAY, size=24, weight="bold"),
             text_color=APPLE_TEXT,
         )
         header_title.pack(side="left")
 
-        # Pill badge for version
         self.version_pill = ctk.CTkLabel(
             top_bar,
             text=f"v{self.current_version}",
@@ -366,7 +372,6 @@ class YouTubeMP3Downloader(ctk.CTk):
         )
         self.version_pill.pack(side="left", padx=(10, 0))
 
-        # Update Status Badge / Notification Pill in header
         self.update_status_pill = ctk.CTkLabel(
             top_bar,
             text="Checking for updates...",
@@ -437,26 +442,55 @@ class YouTubeMP3Downloader(ctk.CTk):
         )
         self.clear_btn.grid(row=0, column=2)
 
-        # ---------------- Card 2: Options (Bitrate & Playlist) ----------------
+        # ---------------- Card 2: Options (Format, Quality, Playlist) ----------------
         card_opts = self._create_card()
 
-        # Row 1: Bitrate Selector
-        row_bitrate = ctk.CTkFrame(card_opts, fg_color="transparent")
-        row_bitrate.pack(fill="x", padx=16, pady=(14, 10))
+        # Row 1: Format Selector (MP3 Audio vs MP4 Video)
+        row_format = ctk.CTkFrame(card_opts, fg_color="transparent")
+        row_format.pack(fill="x", padx=16, pady=(14, 10))
 
-        lbl_bitrate = ctk.CTkLabel(
-            row_bitrate,
-            text="Audio Quality",
+        lbl_format = ctk.CTkLabel(
+            row_format,
+            text="Output Format",
             font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
             text_color=APPLE_TEXT,
         )
-        lbl_bitrate.pack(side="left")
+        lbl_format.pack(side="left")
 
+        self.segmented_format = ctk.CTkSegmentedButton(
+            row_format,
+            values=["MP3 Audio", "MP4 Video"],
+            height=28,
+            corner_radius=7,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            selected_color=APPLE_BLUE,
+            selected_hover_color=APPLE_BLUE_HOVER,
+            command=self._on_format_changed,
+        )
+        self.segmented_format.set(self.format_mode_var.get())
+        self.segmented_format.pack(side="right")
+
+        # Hairline separator
+        self._add_hairline(card_opts)
+
+        # Row 2: Quality Row (Dynamic Bitrate or Resolution Menu)
+        self.row_quality = ctk.CTkFrame(card_opts, fg_color="transparent")
+        self.row_quality.pack(fill="x", padx=16, pady=10)
+
+        self.lbl_quality = ctk.CTkLabel(
+            self.row_quality,
+            text="Audio Bitrate" if self.format_mode_var.get() == "MP3 Audio" else "Video Resolution",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=APPLE_TEXT,
+        )
+        self.lbl_quality.pack(side="left")
+
+        # Bitrate Menu
         self.bitrate_menu = ctk.CTkOptionMenu(
-            row_bitrate,
+            self.row_quality,
             values=["320 kbps (Best)", "192 kbps (Standard)", "128 kbps (Compact)"],
             variable=self.bitrate_var,
-            width=170,
+            width=180,
             height=28,
             corner_radius=7,
             font=ctk.CTkFont(family=FONT_FAMILY, size=12),
@@ -467,12 +501,33 @@ class YouTubeMP3Downloader(ctk.CTk):
             text_color=APPLE_TEXT,
             command=self._on_bitrate_changed,
         )
-        self.bitrate_menu.pack(side="right")
+
+        # Resolution Menu
+        self.resolution_menu = ctk.CTkOptionMenu(
+            self.row_quality,
+            values=["Best Available", "2160p (4K)", "1440p (2K)", "1080p (FHD)", "720p (HD)", "480p (SD)"],
+            variable=self.resolution_var,
+            width=180,
+            height=28,
+            corner_radius=7,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color=APPLE_ENTRY_BG,
+            button_color=APPLE_BORDER,
+            button_hover_color=APPLE_BLUE,
+            text_color=APPLE_TEXT,
+            command=self._on_resolution_changed,
+        )
+
+        if self.format_mode_var.get() == "MP3 Audio":
+            self.bitrate_menu.pack(side="right")
+        else:
+            self.resolution_menu.pack(side="right")
 
         # Hairline separator
         self._add_hairline(card_opts)
 
-        # Row 2: Playlist Segmented Mode
+        # Row 3: Playlist Segmented Mode
         row_playlist = ctk.CTkFrame(card_opts, fg_color="transparent")
         row_playlist.pack(fill="x", padx=16, pady=10)
 
@@ -500,7 +555,7 @@ class YouTubeMP3Downloader(ctk.CTk):
         # Hairline separator
         self._add_hairline(card_opts)
 
-        # Row 3: Metadata Switch (Apple Style)
+        # Row 4: Metadata Switch (Apple Style)
         row_meta = ctk.CTkFrame(card_opts, fg_color="transparent")
         row_meta.pack(fill="x", padx=16, pady=(10, 14))
 
@@ -509,7 +564,7 @@ class YouTubeMP3Downloader(ctk.CTk):
 
         lbl_meta = ctk.CTkLabel(
             meta_info,
-            text="Embed ID3 Tags & Album Artwork",
+            text="Embed Metadata & Thumbnail Cover",
             font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
             text_color=APPLE_TEXT,
             anchor="w",
@@ -518,7 +573,7 @@ class YouTubeMP3Downloader(ctk.CTk):
 
         lbl_meta_sub = ctk.CTkLabel(
             meta_info,
-            text="Adds title, artist, album metadata, and cover art to the file",
+            text="Adds title, artist/creator metadata, and cover thumbnail to the file",
             font=ctk.CTkFont(family=FONT_FAMILY, size=11),
             text_color=APPLE_SECONDARY,
             anchor="w",
@@ -631,9 +686,10 @@ class YouTubeMP3Downloader(ctk.CTk):
         action_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         action_frame.pack(fill="x", padx=24, pady=(12, 28))
 
+        btn_text = "Download MP3" if self.format_mode_var.get() == "MP3 Audio" else "Download MP4"
         self.download_btn = ctk.CTkButton(
             action_frame,
-            text="Download MP3",
+            text=btn_text,
             height=40,
             corner_radius=8,
             font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
@@ -680,6 +736,26 @@ class YouTubeMP3Downloader(ctk.CTk):
         )
         divider.pack(fill="x", padx=16)
 
+    def _on_format_changed(self, value):
+        self.format_mode_var.set(value)
+        if value == "MP3 Audio":
+            self.lbl_quality.configure(text="Audio Bitrate")
+            self.resolution_menu.pack_forget()
+            self.bitrate_menu.pack(side="right")
+            self.download_btn.configure(text="Download MP3")
+        else:
+            self.lbl_quality.configure(text="Video Resolution")
+            self.bitrate_menu.pack_forget()
+            self.resolution_menu.pack(side="right")
+            self.download_btn.configure(text="Download MP4")
+        save_user_config(self.download_path_var.get(), format_mode=value)
+
+    def _on_bitrate_changed(self, choice):
+        save_user_config(self.download_path_var.get(), bitrate=choice)
+
+    def _on_resolution_changed(self, choice):
+        save_user_config(self.download_path_var.get(), resolution=choice)
+
     def _on_segment_changed(self, value):
         if value == "Auto Detect":
             self.playlist_mode_var.set("auto")
@@ -693,7 +769,7 @@ class YouTubeMP3Downloader(ctk.CTk):
         def _check():
             try:
                 url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
-                req = urllib.request.Request(url, headers={"User-Agent": "YouTubeMP3Downloader-App"})
+                req = urllib.request.Request(url, headers={"User-Agent": "YouTubeDownloader-App"})
                 with urllib.request.urlopen(req, timeout=6) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode("utf-8"))
@@ -713,7 +789,6 @@ class YouTubeMP3Downloader(ctk.CTk):
                             if exe_url:
                                 self.download_queue.put(("prompt_update", (tag, body, exe_url)))
                         else:
-                            # Notify that app is on latest version
                             self.download_queue.put(("update_checked", "Up to date"))
             except Exception:
                 self.download_queue.put(("update_checked", ""))
@@ -732,7 +807,7 @@ class YouTubeMP3Downloader(ctk.CTk):
                 app_exe = sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__)
                 temp_update_exe = os.path.join(os.environ.get("TEMP", os.getcwd()), f"Update_{latest_tag}.exe")
 
-                req = urllib.request.Request(download_url, headers={"User-Agent": "YouTubeMP3Downloader-App"})
+                req = urllib.request.Request(download_url, headers={"User-Agent": "YouTubeDownloader-App"})
                 with urllib.request.urlopen(req, timeout=30) as response, open(temp_update_exe, "wb") as out_file:
                     total_length = response.getheader("content-length")
                     total_length = int(total_length) if total_length else None
@@ -787,20 +862,16 @@ del "%~f0"
                 text="FFmpeg not detected",
                 text_color=APPLE_ORANGE,
             )
-            self.detail_label.configure(text="MP3 conversion requires FFmpeg installed or bundled.")
+            self.detail_label.configure(text="Conversion & stream multiplexing requires FFmpeg.")
         else:
             self.detail_label.configure(
                 text=f"Engine ready • FFmpeg active"
             )
 
     def _on_url_change(self, *args):
-        """Update playlist mode hint automatically when URL is pasted."""
         url = self.url_var.get().strip()
         if "list=" in url and self.playlist_mode_var.get() == "auto":
             self.detail_label.configure(text="Detected playlist in link")
-
-    def _on_bitrate_changed(self, choice):
-        save_user_config(self.download_path_var.get(), choice)
 
     def paste_url(self):
         try:
@@ -829,7 +900,7 @@ del "%~f0"
         if selected:
             norm = os.path.normpath(selected)
             self.download_path_var.set(norm)
-            save_user_config(norm, self.bitrate_var.get())
+            save_user_config(norm)
 
     def open_target_folder(self):
         target_path = self.download_path_var.get()
@@ -841,19 +912,21 @@ del "%~f0"
     def _set_ui_state(self, downloading: bool):
         self.is_downloading = downloading
         state = "disabled" if downloading else "normal"
+        btn_action = "MP3" if self.format_mode_var.get() == "MP3 Audio" else "MP4"
         self.download_btn.configure(
-            text="Downloading..." if downloading else "Download MP3",
+            text="Downloading..." if downloading else f"Download {btn_action}",
             state=state,
         )
         self.paste_btn.configure(state=state)
         self.clear_btn.configure(state=state)
         self.browse_btn.configure(state=state)
+        self.segmented_format.configure(state=state)
         self.bitrate_menu.configure(state=state)
+        self.resolution_menu.configure(state=state)
         self.metadata_switch.configure(state=state)
         self.segmented_playlist.configure(state=state)
 
     def _check_queue(self):
-        """Process GUI updates dispatched from worker thread."""
         try:
             while True:
                 msg_type, data = self.download_queue.get_nowait()
@@ -877,7 +950,7 @@ del "%~f0"
                     self.progress_bar.set(1.0)
                     self.status_label.configure(text="Download complete", text_color=APPLE_GREEN)
                     self.metric_label.configure(text="")
-                    messagebox.showinfo("Done", "All tracks downloaded successfully!")
+                    messagebox.showinfo("Done", "Download completed successfully!")
                 elif msg_type == "finish_with_errors":
                     self._set_ui_state(False)
                     self.progress_bar.set(1.0)
@@ -930,10 +1003,15 @@ del "%~f0"
                 messagebox.showerror("Error", f"Could not create folder:\n{e}")
                 return
 
-        save_user_config(save_dir, self.bitrate_var.get())
+        format_mode = self.format_mode_var.get()
+        save_user_config(save_dir, format_mode=format_mode, bitrate=self.bitrate_var.get(), resolution=self.resolution_var.get())
 
         bitrate_str = re.findall(r"\d+", self.bitrate_var.get())
         bitrate_val = bitrate_str[0] if bitrate_str else "320"
+
+        # Resolution string: '1080p (FHD)' -> '1080'
+        res_matches = re.findall(r"\d+", self.resolution_var.get())
+        res_height = int(res_matches[0]) if res_matches else None
 
         self._set_ui_state(True)
         self.progress_bar.set(0)
@@ -946,7 +1024,9 @@ del "%~f0"
             args=(
                 url,
                 save_dir,
+                format_mode,
                 bitrate_val,
+                res_height,
                 self.playlist_mode_var.get(),
                 self.embed_metadata_var.get(),
                 self.ffmpeg_location,
@@ -955,7 +1035,7 @@ del "%~f0"
         )
         worker.start()
 
-    def _download_worker(self, url, save_dir, bitrate, playlist_mode, embed_metadata, ffmpeg_loc):
+    def _download_worker(self, url, save_dir, format_mode, bitrate, res_height, playlist_mode, embed_metadata, ffmpeg_loc):
         skipped_items = []
         current_item_index = [0]
         total_items = [1]
@@ -982,9 +1062,9 @@ del "%~f0"
                 eta_str = f"ETA {eta}s" if eta else ""
 
                 if total_items[0] > 1:
-                    status_text = f"Track {current_item_index[0]} of {total_items[0]}"
+                    status_text = f"Item {current_item_index[0]} of {total_items[0]}"
                 else:
-                    filename = os.path.basename(d.get("filename", "audio stream"))
+                    filename = os.path.basename(d.get("filename", "stream"))
                     clean_name = re.sub(r"\.[^.]+$", "", filename)
                     status_text = f"{clean_name[:42]}"
 
@@ -992,9 +1072,12 @@ del "%~f0"
                 self.download_queue.put(("status_metric", (status_text, metric_text)))
 
             elif status == "finished":
-                self.download_queue.put(("status", "Converting audio..."))
-                self.metric_label.configure(text="")
-                self.download_queue.put(("detail", "Extracting MP3 stream with FFmpeg..."))
+                if format_mode == "MP3 Audio":
+                    self.download_queue.put(("status", "Converting audio..."))
+                    self.download_queue.put(("detail", "Extracting MP3 stream with FFmpeg..."))
+                else:
+                    self.download_queue.put(("status", "Processing video..."))
+                    self.download_queue.put(("detail", "Multiplexing video and audio streams to MP4..."))
 
         class MyCustomLogger:
             def __init__(self, q):
@@ -1022,25 +1105,34 @@ del "%~f0"
                 "%(playlist_index)02d - %(title)s.%(ext)s",
             )
 
-        postprocessors = [
-            {
-                "key": "FFmpegExtractAudio",
-                "preferredcodec": "mp3",
-                "preferredquality": bitrate,
-            }
-        ]
+        postprocessors = []
 
-        if embed_metadata:
-            postprocessors.append({"key": "FFmpegMetadata", "add_metadata": True})
+        if format_mode == "MP3 Audio":
+            # MP3 Audio Mode
+            ytdl_format = "bestaudio/best"
             postprocessors.append(
                 {
-                    "key": "EmbedThumbnail",
-                    "already_have_thumbnail": False,
+                    "key": "FFmpegExtractAudio",
+                    "preferredcodec": "mp3",
+                    "preferredquality": bitrate,
                 }
             )
+            if embed_metadata:
+                postprocessors.append({"key": "FFmpegMetadata", "add_metadata": True})
+                postprocessors.append({"key": "EmbedThumbnail", "already_have_thumbnail": False})
+        else:
+            # MP4 Video Mode with Resolution Filter
+            if res_height:
+                ytdl_format = f"bestvideo[height<={res_height}][ext=mp4]+bestaudio[ext=m4a]/bestvideo[height<={res_height}]+bestaudio/best[height<={res_height}]/best"
+            else:
+                ytdl_format = "bestvideo[ext=mp4]+bestaudio[ext=m4a]/bestvideo+bestaudio/best"
+
+            if embed_metadata:
+                postprocessors.append({"key": "FFmpegMetadata", "add_metadata": True})
+                postprocessors.append({"key": "EmbedThumbnail", "already_have_thumbnail": False})
 
         ydl_opts = {
-            "format": "bestaudio/best",
+            "format": ytdl_format,
             "outtmpl": outtmpl,
             "postprocessors": postprocessors,
             "progress_hooks": [ytdl_hook],
@@ -1051,6 +1143,9 @@ del "%~f0"
             "no_warnings": False,
             "writethumbnail": embed_metadata,
         }
+
+        if format_mode == "MP4 Video":
+            ydl_opts["merge_output_format"] = "mp4"
 
         if ffmpeg_loc:
             ydl_opts["ffmpeg_location"] = ffmpeg_loc
@@ -1090,7 +1185,7 @@ del "%~f0"
                 download_result = ydl.download([url])
 
                 if download_result != 0 and len(skipped_items) > 0:
-                    self.download_queue.put(("finish_with_errors", f"{len(skipped_items)} tracks skipped."))
+                    self.download_queue.put(("finish_with_errors", f"{len(skipped_items)} items skipped."))
                 else:
                     self.download_queue.put(("finish", ""))
 
