@@ -1,6 +1,6 @@
 """
 YouTube MP3 Downloader - Desktop GUI Application
-Modern CustomTkinter desktop interface for downloading YouTube videos and playlists as MP3.
+macOS / Apple Human Interface Guidelines aesthetic design.
 """
 
 import os
@@ -26,7 +26,28 @@ import yt_dlp
 APP_VERSION = "1.0.1"
 GITHUB_REPO = "bombdevgif/youtube-mp3-downloader"
 
-# Set appearance and theme
+# Apple HIG Hex Color Palette
+APPLE_BG = ("#F5F5F7", "#1C1C1E")               # Base system background
+APPLE_CARD = ("#FFFFFF", "#2C2C2E")             # Inset grouped card surface
+APPLE_CARD_HOVER = ("#F0F0F2", "#363638")       # Subtle card hover
+APPLE_BORDER = ("#E5E5EA", "#38383A")           # Hairline low-contrast border
+APPLE_BORDER_FOCUS = ("#007AFF", "#0A84FF")     # System Blue focus
+APPLE_BLUE = ("#007AFF", "#0A84FF")             # Apple System Blue
+APPLE_BLUE_HOVER = ("#0062CC", "#0071E3")       # System Blue hover / pressed
+APPLE_TEXT = ("#1D1D1F", "#F5F5F7")             # Primary Label
+APPLE_SECONDARY = ("#86868B", "#98989D")        # Secondary Label
+APPLE_GREEN = ("#34C759", "#30D158")            # System Green
+APPLE_ORANGE = ("#FF9500", "#FF9F0A")           # System Orange
+APPLE_RED = ("#FF3B30", "#FF453A")              # System Red
+APPLE_ENTRY_BG = ("#F9F9FB", "#242426")         # Inset entry field
+APPLE_PILL_BLUE_BG = ("#EBF5FF", "#142845")     # Light blue badge tint
+APPLE_PILL_GREEN_BG = ("#E8F8EE", "#163422")    # Light green badge tint
+APPLE_BAR_BG = ("#E5E5EA", "#3A3A3C")           # Track bar bg
+
+# Apple typography preference
+FONT_FAMILY = "Segoe UI Variable Text"
+FONT_DISPLAY = "Segoe UI Variable Display"
+
 ctk.set_appearance_mode("Dark")
 ctk.set_default_color_theme("blue")
 
@@ -83,7 +104,7 @@ def load_user_config():
 
     defaults = {
         "save_dir": default_dir,
-        "bitrate": "320 kbps",
+        "bitrate": "320 kbps (Best)",
     }
     if os.path.exists(cfg_file):
         try:
@@ -94,7 +115,7 @@ def load_user_config():
                     if saved_dir and os.path.isdir(saved_dir):
                         defaults["save_dir"] = os.path.normpath(saved_dir)
                     saved_bitrate = data.get("bitrate")
-                    if saved_bitrate in ["128 kbps", "192 kbps", "320 kbps"]:
+                    if saved_bitrate:
                         defaults["bitrate"] = saved_bitrate
         except Exception:
             pass
@@ -159,54 +180,87 @@ def find_ffmpeg_location():
 
 
 class UpdateDialog(ctk.CTkToplevel):
-    """Modern popup asking user if they want to download the new update."""
+    """Apple HIG Sheet / Modal for App Updates."""
     def __init__(self, parent, latest_tag, release_notes, download_url):
         super().__init__(parent)
-        self.title("New Update Available")
-        self.geometry("520x360")
-        self.minsize(450, 300)
+        self.title("Software Update")
+        self.geometry("500x350")
+        self.minsize(440, 310)
         self.parent = parent
         self.download_url = download_url
         self.latest_tag = latest_tag
+        self.configure(fg_color=APPLE_BG)
 
         self.transient(parent)
         self.grab_set()
 
-        self.grid_columnconfigure(0, weight=1)
-        self.grid_rowconfigure(2, weight=1)
+        card = ctk.CTkFrame(
+            self,
+            fg_color=APPLE_CARD,
+            border_color=APPLE_BORDER,
+            border_width=1,
+            corner_radius=12,
+        )
+        card.pack(fill="both", expand=True, padx=20, pady=20)
 
-        # Header
+        # Header with icon
+        header_row = ctk.CTkFrame(card, fg_color="transparent")
+        header_row.pack(fill="x", padx=20, pady=(20, 8))
+
+        icon_lbl = ctk.CTkLabel(
+            header_row,
+            text="✨",
+            font=ctk.CTkFont(size=24),
+        )
+        icon_lbl.pack(side="left", padx=(0, 10))
+
+        title_box = ctk.CTkFrame(header_row, fg_color="transparent")
+        title_box.pack(side="left", fill="x", expand=True)
+
         lbl_title = ctk.CTkLabel(
-            self,
-            text=f"🚀 Update Available: {latest_tag}",
-            font=ctk.CTkFont(size=18, weight="bold"),
+            title_box,
+            text=f"Update Available: {latest_tag}",
+            font=ctk.CTkFont(family=FONT_DISPLAY, size=17, weight="bold"),
+            text_color=APPLE_TEXT,
+            anchor="w",
         )
-        lbl_title.pack(anchor="w", padx=20, pady=(20, 5))
+        lbl_title.pack(anchor="w")
 
-        lbl_desc = ctk.CTkLabel(
-            self,
-            text=f"A newer version of YouTube MP3 Downloader is available on GitHub.\nWould you like to download and install it now inside the app?",
-            justify="left",
-            font=ctk.CTkFont(size=12),
+        lbl_sub = ctk.CTkLabel(
+            title_box,
+            text="A new version of YouTube MP3 Downloader is ready to install.",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=APPLE_SECONDARY,
+            anchor="w",
         )
-        lbl_desc.pack(anchor="w", padx=20, pady=(0, 10))
+        lbl_sub.pack(anchor="w")
 
-        # Release Notes Preview
-        notes_box = ctk.CTkTextbox(self, height=130, font=ctk.CTkFont(size=11))
-        notes_box.pack(fill="both", expand=True, padx=20, pady=5)
-        notes_box.insert("1.0", release_notes or "Bug fixes and improvements.")
+        # Release notes text
+        notes_box = ctk.CTkTextbox(
+            card,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            fg_color=APPLE_ENTRY_BG,
+            border_color=APPLE_BORDER,
+            border_width=1,
+            corner_radius=8,
+            wrap="word",
+        )
+        notes_box.pack(fill="both", expand=True, padx=20, pady=10)
+        notes_box.insert("1.0", release_notes or "Stability and performance improvements.")
         notes_box.configure(state="disabled")
 
-        # Buttons
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=20, pady=(10, 20))
+        # Actions
+        btn_frame = ctk.CTkFrame(card, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=(10, 18))
 
         btn_update = ctk.CTkButton(
             btn_frame,
-            text="⬇ Update Now (In-App)",
-            fg_color="#2a9d8f",
-            hover_color="#21867a",
-            font=ctk.CTkFont(size=13, weight="bold"),
+            text="Update Now",
+            fg_color=APPLE_BLUE,
+            hover_color=APPLE_BLUE_HOVER,
+            corner_radius=7,
+            height=32,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
             command=self._on_update,
         )
         btn_update.pack(side="right", padx=(10, 0))
@@ -214,8 +268,14 @@ class UpdateDialog(ctk.CTkToplevel):
         btn_later = ctk.CTkButton(
             btn_frame,
             text="Later",
-            fg_color=("gray60", "gray35"),
-            hover_color=("gray50", "gray45"),
+            fg_color="transparent",
+            text_color=APPLE_SECONDARY,
+            hover_color=APPLE_BORDER,
+            border_color=APPLE_BORDER,
+            border_width=1,
+            corner_radius=7,
+            height=32,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
             command=self.destroy,
         )
         btn_later.pack(side="right")
@@ -230,9 +290,10 @@ class YouTubeMP3Downloader(ctk.CTk):
         super().__init__()
 
         self.current_version = get_current_version()
-        self.title(f"YouTube to MP3 Downloader (v{self.current_version})")
-        self.geometry("740x660")
-        self.minsize(580, 480)
+        self.title("YouTube to MP3")
+        self.geometry("740x670")
+        self.minsize(580, 500)
+        self.configure(fg_color=APPLE_BG)
 
         # Set window icon
         icon_path = resource_path("app_icon.ico")
@@ -242,16 +303,15 @@ class YouTubeMP3Downloader(ctk.CTk):
             except Exception:
                 pass
 
-        # Download state
+        # Download & Worker state
         self.is_downloading = False
-        self.cancel_requested = False
         self.download_queue = queue.Queue()
         self.ffmpeg_location = find_ffmpeg_location()
 
-        # Load saved user settings (Remember last folder & default to highest bitrate 320 kbps)
+        # User persistent settings
         self.user_cfg = load_user_config()
         self.download_path_var = tk.StringVar(value=self.user_cfg["save_dir"])
-        self.bitrate_var = tk.StringVar(value=self.user_cfg.get("bitrate", "320 kbps"))
+        self.bitrate_var = tk.StringVar(value=self.user_cfg.get("bitrate", "320 kbps (Best)"))
 
         # URL variable
         self.url_var = tk.StringVar()
@@ -265,263 +325,376 @@ class YouTubeMP3Downloader(ctk.CTk):
         self._check_queue()
         self._check_initial_ffmpeg()
 
-        # Trigger automatic background check for new releases
-        self.after(1500, self.check_for_updates_background)
+        # Automatic background check for new releases
+        self.after(1200, self.check_for_updates_background)
 
     def _build_ui(self):
-        # Configure layout grid
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Main Scrollable Frame - ensures all controls adapt gracefully to any window size
+        # Scrollable container styled like macOS System Settings
         self.scroll_frame = ctk.CTkScrollableFrame(
             self,
-            corner_radius=15,
-            fg_color=("gray92", "#1e1e24"),
+            corner_radius=0,
+            fg_color=APPLE_BG,
         )
-        self.scroll_frame.grid(row=0, column=0, sticky="nsew", padx=15, pady=15)
+        self.scroll_frame.grid(row=0, column=0, sticky="nsew", padx=0, pady=0)
         self.scroll_frame.grid_columnconfigure(0, weight=1)
 
-        # Header Title & Subtitle
-        header_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        header_frame.pack(fill="x", padx=10, pady=(15, 8))
+        # ---------------- Toolbar / Top Header ----------------
+        top_bar = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        top_bar.pack(fill="x", padx=24, pady=(20, 12))
 
-        top_row = ctk.CTkFrame(header_frame, fg_color="transparent")
-        top_row.pack(fill="x")
-
-        title_label = ctk.CTkLabel(
-            top_row,
-            text="🎵 YouTube to MP3 Downloader",
-            font=ctk.CTkFont(size=23, weight="bold"),
+        header_title = ctk.CTkLabel(
+            top_bar,
+            text="YouTube to MP3",
+            font=ctk.CTkFont(family=FONT_DISPLAY, size=24, weight="bold"),
+            text_color=APPLE_TEXT,
         )
-        title_label.pack(side="left")
+        header_title.pack(side="left")
 
-        self.ver_label = ctk.CTkLabel(
-            top_row,
+        # Pill badge for version
+        self.version_pill = ctk.CTkLabel(
+            top_bar,
             text=f"v{self.current_version}",
-            font=ctk.CTkFont(size=12, weight="bold"),
-            text_color="#2a9d8f",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11, weight="bold"),
+            text_color=APPLE_BLUE,
+            fg_color=APPLE_PILL_BLUE_BG,
+            corner_radius=12,
+            padx=9,
+            pady=3,
         )
-        self.ver_label.pack(side="left", padx=10)
+        self.version_pill.pack(side="left", padx=(10, 0))
 
-        subtitle_label = ctk.CTkLabel(
-            header_frame,
-            text="Download single videos or full playlists in high-fidelity MP3 with metadata",
-            font=ctk.CTkFont(size=12),
-            text_color=("gray50", "gray70"),
+        # Update Status Badge / Notification Pill in header
+        self.update_status_pill = ctk.CTkLabel(
+            top_bar,
+            text="Checking for updates...",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=APPLE_SECONDARY,
+            fg_color="transparent",
+            corner_radius=10,
+            padx=8,
+            pady=2,
         )
-        subtitle_label.pack(anchor="w", pady=(2, 0))
+        self.update_status_pill.pack(side="right")
 
-        # ---------------- Section 1: URL Input ----------------
-        url_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        url_frame.pack(fill="x", padx=10, pady=8)
-        url_frame.grid_columnconfigure(0, weight=1)
+        # ---------------- Card 1: URL Input ----------------
+        card_url = self._create_card()
 
-        url_label = ctk.CTkLabel(
-            url_frame,
-            text="YouTube Video or Playlist URL:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+        lbl_url = ctk.CTkLabel(
+            card_url,
+            text="Link",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=APPLE_TEXT,
         )
-        url_label.grid(row=0, column=0, columnspan=3, sticky="w", padx=15, pady=(10, 5))
+        lbl_url.pack(anchor="w", padx=16, pady=(14, 6))
+
+        input_row = ctk.CTkFrame(card_url, fg_color="transparent")
+        input_row.pack(fill="x", padx=16, pady=(0, 14))
+        input_row.grid_columnconfigure(0, weight=1)
 
         self.url_entry = ctk.CTkEntry(
-            url_frame,
+            input_row,
             textvariable=self.url_var,
-            placeholder_text="https://www.youtube.com/watch?v=... or https://www.youtube.com/playlist?list=...",
-            height=38,
-            font=ctk.CTkFont(size=12),
+            placeholder_text="Paste video or playlist link...",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            height=34,
+            corner_radius=8,
+            border_width=1,
+            border_color=APPLE_BORDER,
+            fg_color=APPLE_ENTRY_BG,
+            text_color=APPLE_TEXT,
         )
-        self.url_entry.grid(row=1, column=0, sticky="ew", padx=(15, 8), pady=(0, 12))
+        self.url_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
 
         self.paste_btn = ctk.CTkButton(
-            url_frame,
-            text="📋 Paste",
-            width=80,
-            height=38,
+            input_row,
+            text="Paste",
+            width=70,
+            height=34,
+            corner_radius=7,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12, weight="bold"),
+            fg_color=APPLE_BLUE,
+            hover_color=APPLE_BLUE_HOVER,
             command=self.paste_url,
-            font=ctk.CTkFont(size=12),
         )
-        self.paste_btn.grid(row=1, column=1, padx=4, pady=(0, 12))
+        self.paste_btn.grid(row=0, column=1, padx=(0, 6))
 
         self.clear_btn = ctk.CTkButton(
-            url_frame,
-            text="✕ Clear",
-            width=70,
-            height=38,
-            fg_color=("gray60", "gray35"),
-            hover_color=("gray50", "gray45"),
+            input_row,
+            text="Clear",
+            width=65,
+            height=34,
+            corner_radius=7,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color="transparent",
+            text_color=APPLE_SECONDARY,
+            hover_color=APPLE_BORDER,
+            border_width=1,
+            border_color=APPLE_BORDER,
             command=self.clear_url,
-            font=ctk.CTkFont(size=12),
         )
-        self.clear_btn.grid(row=1, column=2, padx=(4, 15), pady=(0, 12))
+        self.clear_btn.grid(row=0, column=2)
 
-        # ---------------- Section 2: Download Options ----------------
-        options_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        options_frame.pack(fill="x", padx=10, pady=8)
-        options_frame.grid_columnconfigure(1, weight=1)
+        # ---------------- Card 2: Options (Bitrate & Playlist) ----------------
+        card_opts = self._create_card()
 
-        # Quality selector (Defaulted to 320 kbps - Highest Available)
-        bitrate_label = ctk.CTkLabel(
-            options_frame,
-            text="Audio Bitrate:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+        # Row 1: Bitrate Selector
+        row_bitrate = ctk.CTkFrame(card_opts, fg_color="transparent")
+        row_bitrate.pack(fill="x", padx=16, pady=(14, 10))
+
+        lbl_bitrate = ctk.CTkLabel(
+            row_bitrate,
+            text="Audio Quality",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=APPLE_TEXT,
         )
-        bitrate_label.grid(row=0, column=0, sticky="w", padx=15, pady=(12, 6))
+        lbl_bitrate.pack(side="left")
 
         self.bitrate_menu = ctk.CTkOptionMenu(
-            options_frame,
+            row_bitrate,
             values=["320 kbps (Best)", "192 kbps (Standard)", "128 kbps (Compact)"],
             variable=self.bitrate_var,
-            width=180,
+            width=170,
+            height=28,
+            corner_radius=7,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            dropdown_font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color=APPLE_ENTRY_BG,
+            button_color=APPLE_BORDER,
+            button_hover_color=APPLE_BLUE,
+            text_color=APPLE_TEXT,
             command=self._on_bitrate_changed,
         )
-        cur_b = self.bitrate_var.get()
-        if "320" in cur_b:
-            self.bitrate_var.set("320 kbps (Best)")
-        elif "192" in cur_b:
-            self.bitrate_var.set("192 kbps (Standard)")
-        elif "128" in cur_b:
-            self.bitrate_var.set("128 kbps (Compact)")
-        else:
-            self.bitrate_var.set("320 kbps (Best)")
+        self.bitrate_menu.pack(side="right")
 
-        self.bitrate_menu.grid(row=0, column=1, sticky="w", padx=10, pady=(12, 6))
+        # Hairline separator
+        self._add_hairline(card_opts)
 
-        # Playlist mode selector
-        playlist_label = ctk.CTkLabel(
-            options_frame,
-            text="Playlist Behavior:",
-            font=ctk.CTkFont(size=13, weight="bold"),
+        # Row 2: Playlist Segmented Mode
+        row_playlist = ctk.CTkFrame(card_opts, fg_color="transparent")
+        row_playlist.pack(fill="x", padx=16, pady=10)
+
+        lbl_playlist = ctk.CTkLabel(
+            row_playlist,
+            text="Playlist Behavior",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=APPLE_TEXT,
         )
-        playlist_label.grid(row=1, column=0, sticky="w", padx=15, pady=6)
+        lbl_playlist.pack(side="left")
 
-        playlist_options_frame = ctk.CTkFrame(options_frame, fg_color="transparent")
-        playlist_options_frame.grid(row=1, column=1, sticky="w", padx=10, pady=6)
-
-        self.rb_auto = ctk.CTkRadioButton(
-            playlist_options_frame,
-            text="Auto Detect",
-            variable=self.playlist_mode_var,
-            value="auto",
+        self.segmented_playlist = ctk.CTkSegmentedButton(
+            row_playlist,
+            values=["Auto Detect", "Entire Playlist", "Single Video"],
+            height=28,
+            corner_radius=7,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            selected_color=APPLE_BLUE,
+            selected_hover_color=APPLE_BLUE_HOVER,
+            command=self._on_segment_changed,
         )
-        self.rb_auto.pack(side="left", padx=(0, 10))
+        self.segmented_playlist.set("Auto Detect")
+        self.segmented_playlist.pack(side="right")
 
-        self.rb_playlist = ctk.CTkRadioButton(
-            playlist_options_frame,
-            text="Entire Playlist",
-            variable=self.playlist_mode_var,
-            value="playlist",
+        # Hairline separator
+        self._add_hairline(card_opts)
+
+        # Row 3: Metadata Switch (Apple Style)
+        row_meta = ctk.CTkFrame(card_opts, fg_color="transparent")
+        row_meta.pack(fill="x", padx=16, pady=(10, 14))
+
+        meta_info = ctk.CTkFrame(row_meta, fg_color="transparent")
+        meta_info.pack(side="left")
+
+        lbl_meta = ctk.CTkLabel(
+            meta_info,
+            text="Embed ID3 Tags & Album Artwork",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=APPLE_TEXT,
+            anchor="w",
         )
-        self.rb_playlist.pack(side="left", padx=10)
+        lbl_meta.pack(anchor="w")
 
-        self.rb_single = ctk.CTkRadioButton(
-            playlist_options_frame,
-            text="Single Video Only",
-            variable=self.playlist_mode_var,
-            value="single",
+        lbl_meta_sub = ctk.CTkLabel(
+            meta_info,
+            text="Adds title, artist, album metadata, and cover art to the file",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=APPLE_SECONDARY,
+            anchor="w",
         )
-        self.rb_single.pack(side="left", padx=10)
+        lbl_meta_sub.pack(anchor="w")
 
-        # Metadata toggle
-        self.metadata_chk = ctk.CTkCheckBox(
-            options_frame,
-            text="Embed ID3 tags (Title, Artist, Album) & Thumbnail Cover",
+        self.metadata_switch = ctk.CTkSwitch(
+            row_meta,
+            text="",
             variable=self.embed_metadata_var,
+            progress_color=APPLE_BLUE,
+            width=46,
+            height=24,
+            corner_radius=12,
         )
-        self.metadata_chk.grid(row=2, column=0, columnspan=2, sticky="w", padx=15, pady=(6, 12))
+        self.metadata_switch.pack(side="right")
 
-        # ---------------- Section 3: Save Location ----------------
-        save_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        save_frame.pack(fill="x", padx=10, pady=8)
-        save_frame.grid_columnconfigure(0, weight=1)
+        # ---------------- Card 3: Destination Folder ----------------
+        card_dir = self._create_card()
 
-        save_label = ctk.CTkLabel(
-            save_frame,
-            text="Save Location (Remembers your chosen folder):",
-            font=ctk.CTkFont(size=13, weight="bold"),
+        row_dir_title = ctk.CTkFrame(card_dir, fg_color="transparent")
+        row_dir_title.pack(fill="x", padx=16, pady=(14, 6))
+
+        lbl_dir = ctk.CTkLabel(
+            row_dir_title,
+            text="Save Location",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=APPLE_TEXT,
         )
-        save_label.grid(row=0, column=0, columnspan=2, sticky="w", padx=15, pady=(10, 4))
+        lbl_dir.pack(side="left")
+
+        row_dir = ctk.CTkFrame(card_dir, fg_color="transparent")
+        row_dir.pack(fill="x", padx=16, pady=(0, 14))
+        row_dir.grid_columnconfigure(0, weight=1)
 
         self.path_entry = ctk.CTkEntry(
-            save_frame,
+            row_dir,
             textvariable=self.download_path_var,
             state="readonly",
-            height=36,
-            font=ctk.CTkFont(size=11),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            height=34,
+            corner_radius=8,
+            border_width=1,
+            border_color=APPLE_BORDER,
+            fg_color=APPLE_ENTRY_BG,
+            text_color=APPLE_TEXT,
         )
-        self.path_entry.grid(row=1, column=0, sticky="ew", padx=(15, 8), pady=(0, 12))
+        self.path_entry.grid(row=0, column=0, sticky="ew", padx=(0, 8))
 
         self.browse_btn = ctk.CTkButton(
-            save_frame,
-            text="📁 Browse...",
-            width=95,
-            height=36,
+            row_dir,
+            text="Choose...",
+            width=80,
+            height=34,
+            corner_radius=7,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            fg_color="transparent",
+            text_color=APPLE_TEXT,
+            border_width=1,
+            border_color=APPLE_BORDER,
+            hover_color=APPLE_BORDER,
             command=self.browse_directory,
-            font=ctk.CTkFont(size=12),
         )
-        self.browse_btn.grid(row=1, column=1, padx=(0, 15), pady=(0, 12))
+        self.browse_btn.grid(row=0, column=1)
 
-        # ---------------- Section 4: Progress & Status ----------------
-        progress_frame = ctk.CTkFrame(self.scroll_frame, fg_color=("gray85", "#282830"), corner_radius=10)
-        progress_frame.pack(fill="x", padx=10, pady=8)
+        # ---------------- Card 4: Progress & Status ----------------
+        card_progress = self._create_card()
+
+        status_box = ctk.CTkFrame(card_progress, fg_color="transparent")
+        status_box.pack(fill="x", padx=16, pady=(14, 6))
 
         self.status_label = ctk.CTkLabel(
-            progress_frame,
-            text="Ready. Paste a YouTube link and click Download.",
-            font=ctk.CTkFont(size=12),
-            text_color=("gray30", "gray85"),
-            wraplength=640,
-            justify="left",
+            status_box,
+            text="Ready to download",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13, weight="bold"),
+            text_color=APPLE_TEXT,
+            anchor="w",
         )
-        self.status_label.pack(anchor="w", padx=15, pady=(10, 5))
+        self.status_label.pack(side="left")
 
-        self.progress_bar = ctk.CTkProgressBar(progress_frame, height=12)
-        self.progress_bar.pack(fill="x", padx=15, pady=(4, 6))
+        self.metric_label = ctk.CTkLabel(
+            status_box,
+            text="",
+            font=ctk.CTkFont(family=FONT_FAMILY, size=12),
+            text_color=APPLE_SECONDARY,
+            anchor="e",
+        )
+        self.metric_label.pack(side="right")
+
+        self.progress_bar = ctk.CTkProgressBar(
+            card_progress,
+            height=6,
+            corner_radius=3,
+            progress_color=APPLE_BLUE,
+            fg_color=APPLE_BAR_BG,
+        )
+        self.progress_bar.pack(fill="x", padx=16, pady=(4, 6))
         self.progress_bar.set(0)
 
         self.detail_label = ctk.CTkLabel(
-            progress_frame,
+            card_progress,
             text="",
-            font=ctk.CTkFont(size=11),
-            text_color=("gray50", "gray65"),
+            font=ctk.CTkFont(family=FONT_FAMILY, size=11),
+            text_color=APPLE_SECONDARY,
+            anchor="w",
         )
-        self.detail_label.pack(anchor="w", padx=15, pady=(0, 10))
+        self.detail_label.pack(fill="x", padx=16, pady=(0, 12))
 
-        # ---------------- Action Buttons ----------------
+        # ---------------- Actions: Primary Start & Open Folder ----------------
         action_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
-        action_frame.pack(fill="x", padx=10, pady=(10, 25))
+        action_frame.pack(fill="x", padx=24, pady=(12, 28))
 
         self.download_btn = ctk.CTkButton(
             action_frame,
-            text="⬇ Start Download",
-            height=46,
-            font=ctk.CTkFont(size=14, weight="bold"),
+            text="Download MP3",
+            height=40,
+            corner_radius=8,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=14, weight="bold"),
+            fg_color=APPLE_BLUE,
+            hover_color=APPLE_BLUE_HOVER,
             command=self.start_download_thread,
-            fg_color="#1f6aa5",
-            hover_color="#144870",
         )
         self.download_btn.pack(side="left", fill="x", expand=True, padx=(0, 10))
 
         self.open_folder_btn = ctk.CTkButton(
             action_frame,
-            text="📂 Open Folder",
-            height=46,
-            width=125,
-            font=ctk.CTkFont(size=13),
+            text="Open Folder",
+            height=40,
+            width=120,
+            corner_radius=8,
+            font=ctk.CTkFont(family=FONT_FAMILY, size=13),
+            fg_color="transparent",
+            text_color=APPLE_TEXT,
+            border_width=1,
+            border_color=APPLE_BORDER,
+            hover_color=APPLE_BORDER,
             command=self.open_target_folder,
-            fg_color=("gray60", "gray35"),
-            hover_color=("gray50", "gray45"),
         )
         self.open_folder_btn.pack(side="right")
 
-    # ---------------- Automatic Update Logic ----------------
+    def _create_card(self):
+        """Helper to create an Apple HIG inset card container."""
+        card = ctk.CTkFrame(
+            self.scroll_frame,
+            fg_color=APPLE_CARD,
+            border_color=APPLE_BORDER,
+            border_width=1,
+            corner_radius=12,
+        )
+        card.pack(fill="x", padx=24, pady=6)
+        return card
+
+    def _add_hairline(self, parent):
+        """Helper to add 1px subtle divider inside grouped card."""
+        divider = ctk.CTkFrame(
+            parent,
+            height=1,
+            fg_color=APPLE_BORDER,
+        )
+        divider.pack(fill="x", padx=16)
+
+    def _on_segment_changed(self, value):
+        if value == "Auto Detect":
+            self.playlist_mode_var.set("auto")
+        elif value == "Entire Playlist":
+            self.playlist_mode_var.set("playlist")
+        else:
+            self.playlist_mode_var.set("single")
+
     def check_for_updates_background(self):
-        """Worker thread to query GitHub API for releases."""
+        """Worker thread to query GitHub API for releases and notify user."""
         def _check():
             try:
                 url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
                 req = urllib.request.Request(url, headers={"User-Agent": "YouTubeMP3Downloader-App"})
-                with urllib.request.urlopen(req, timeout=5) as resp:
+                with urllib.request.urlopen(req, timeout=6) as resp:
                     if resp.status == 200:
                         data = json.loads(resp.read().decode("utf-8"))
                         tag = data.get("tag_name", "")
@@ -532,7 +705,6 @@ class YouTubeMP3Downloader(ctk.CTk):
                         latest_v = parse_version_tuple(tag)
 
                         if latest_v > current_v:
-                            # Look for .exe asset
                             exe_url = None
                             for a in assets:
                                 if a.get("name", "").endswith(".exe"):
@@ -540,17 +712,19 @@ class YouTubeMP3Downloader(ctk.CTk):
                                     break
                             if exe_url:
                                 self.download_queue.put(("prompt_update", (tag, body, exe_url)))
+                        else:
+                            # Notify that app is on latest version
+                            self.download_queue.put(("update_checked", "Up to date"))
             except Exception:
-                # Silently skip if user is offline or rate limited
-                pass
+                self.download_queue.put(("update_checked", ""))
 
         threading.Thread(target=_check, daemon=True).start()
 
     def start_in_app_update(self, download_url, latest_tag):
-        """Download update in-app and restart seamlessly."""
+        """Download update in-app and restart smoothly."""
         self._set_ui_state(True)
-        self.download_btn.configure(text="⬇ Updating App...", state="disabled")
-        self.status_label.configure(text=f"Downloading update {latest_tag} in-app...", text_color="#2a9d8f")
+        self.download_btn.configure(text="Updating App...", state="disabled")
+        self.status_label.configure(text=f"Downloading {latest_tag}...", text_color=APPLE_BLUE)
         self.progress_bar.set(0)
 
         def _update_worker():
@@ -561,8 +735,7 @@ class YouTubeMP3Downloader(ctk.CTk):
                 req = urllib.request.Request(download_url, headers={"User-Agent": "YouTubeMP3Downloader-App"})
                 with urllib.request.urlopen(req, timeout=30) as response, open(temp_update_exe, "wb") as out_file:
                     total_length = response.getheader("content-length")
-                    if total_length:
-                        total_length = int(total_length)
+                    total_length = int(total_length) if total_length else None
                     downloaded = 0
                     chunk_size = 1024 * 64
 
@@ -578,13 +751,12 @@ class YouTubeMP3Downloader(ctk.CTk):
                             mb_down = downloaded / (1024 * 1024)
                             mb_tot = total_length / (1024 * 1024)
                             self.download_queue.put(
-                                ("status", f"Downloading update {latest_tag}: {mb_down:.1f} MB / {mb_tot:.1f} MB ({progress*100:.0f}%)")
+                                ("status_metric", (f"Downloading {latest_tag}", f"{mb_down:.1f} / {mb_tot:.1f} MB ({progress*100:.0f}%)"))
                             )
 
-                self.download_queue.put(("status", "Update downloaded! Applying update and restarting..."))
+                self.download_queue.put(("status", "Update ready! Restarting into new version..."))
                 self.download_queue.put(("progress", 1.0))
 
-                # Launch updater script to replace current running executable and restart it
                 if getattr(sys, "frozen", False):
                     bat_content = f"""@echo off
 timeout /t 2 /nobreak >nul
@@ -603,7 +775,7 @@ del "%~f0"
                     messagebox.showinfo("Update Downloaded", f"Update downloaded to:\n{temp_update_exe}")
 
             except Exception as e:
-                self.download_queue.put(("error", f"Update download failed:\n{str(e)}"))
+                self.download_queue.put(("error", f"Update failed: {str(e)}"))
                 self._set_ui_state(False)
 
         threading.Thread(target=_update_worker, daemon=True).start()
@@ -612,26 +784,25 @@ del "%~f0"
         """Notify user if ffmpeg was not detected."""
         if not self.ffmpeg_location:
             self.status_label.configure(
-                text="⚠️ Warning: FFmpeg not detected. MP3 conversion requires FFmpeg.",
-                text_color="#e07a5f",
+                text="FFmpeg not detected",
+                text_color=APPLE_ORANGE,
             )
+            self.detail_label.configure(text="MP3 conversion requires FFmpeg installed or bundled.")
         else:
             self.detail_label.configure(
-                text=f"FFmpeg ready ({self.ffmpeg_location})"
+                text=f"Engine ready • FFmpeg active"
             )
 
     def _on_url_change(self, *args):
         """Update playlist mode hint automatically when URL is pasted."""
         url = self.url_var.get().strip()
         if "list=" in url and self.playlist_mode_var.get() == "auto":
-            self.detail_label.configure(text="ℹ️ Detected playlist link in URL.")
+            self.detail_label.configure(text="Detected playlist in link")
 
     def _on_bitrate_changed(self, choice):
-        """Save selected bitrate."""
         save_user_config(self.download_path_var.get(), choice)
 
     def paste_url(self):
-        """Read clipboard and paste into URL entry."""
         try:
             clipboard = self.clipboard_get().strip()
             if clipboard:
@@ -640,18 +811,17 @@ del "%~f0"
             pass
 
     def clear_url(self):
-        """Clear URL entry and status."""
         self.url_var.set("")
         if not self.is_downloading:
             self.progress_bar.set(0)
             self.status_label.configure(
-                text="Ready. Paste a YouTube link and click Download.",
-                text_color=("gray30", "gray85"),
+                text="Ready to download",
+                text_color=APPLE_TEXT,
             )
-            self.detail_label.configure(text="")
+            self.metric_label.configure(text="")
+            self.detail_label.configure(text="Engine ready • FFmpeg active")
 
     def browse_directory(self):
-        """Open directory picker dialog and save user preference."""
         selected = filedialog.askdirectory(
             initialdir=self.download_path_var.get(),
             title="Select Destination Folder",
@@ -662,7 +832,6 @@ del "%~f0"
             save_user_config(norm, self.bitrate_var.get())
 
     def open_target_folder(self):
-        """Open destination folder in Windows File Explorer."""
         target_path = self.download_path_var.get()
         if os.path.exists(target_path):
             os.startfile(target_path)
@@ -670,21 +839,18 @@ del "%~f0"
             messagebox.showwarning("Folder Not Found", f"The directory does not exist:\n{target_path}")
 
     def _set_ui_state(self, downloading: bool):
-        """Enable/disable controls during active downloads."""
         self.is_downloading = downloading
         state = "disabled" if downloading else "normal"
         self.download_btn.configure(
-            text="⏳ Downloading..." if downloading else "⬇ Start Download",
+            text="Downloading..." if downloading else "Download MP3",
             state=state,
         )
         self.paste_btn.configure(state=state)
         self.clear_btn.configure(state=state)
         self.browse_btn.configure(state=state)
         self.bitrate_menu.configure(state=state)
-        self.metadata_chk.configure(state=state)
-        self.rb_auto.configure(state=state)
-        self.rb_playlist.configure(state=state)
-        self.rb_single.configure(state=state)
+        self.metadata_switch.configure(state=state)
+        self.segmented_playlist.configure(state=state)
 
     def _check_queue(self):
         """Process GUI updates dispatched from worker thread."""
@@ -692,32 +858,51 @@ del "%~f0"
             while True:
                 msg_type, data = self.download_queue.get_nowait()
                 if msg_type == "status":
-                    self.status_label.configure(text=data, text_color=("gray30", "gray85"))
+                    self.status_label.configure(text=data, text_color=APPLE_TEXT)
+                elif msg_type == "status_metric":
+                    title, metric = data
+                    self.status_label.configure(text=title, text_color=APPLE_TEXT)
+                    self.metric_label.configure(text=metric)
                 elif msg_type == "detail":
                     self.detail_label.configure(text=data)
                 elif msg_type == "progress":
                     self.progress_bar.set(data)
                 elif msg_type == "warning":
-                    self.status_label.configure(text=f"⚠️ {data}", text_color="#e07a5f")
+                    self.status_label.configure(text=f"{data}", text_color=APPLE_ORANGE)
                 elif msg_type == "error":
-                    self.status_label.configure(text=f"❌ {data}", text_color="#e76f51")
-                    messagebox.showerror("Download Error", data)
+                    self.status_label.configure(text=f"Error: {data}", text_color=APPLE_RED)
+                    messagebox.showerror("Error", data)
                 elif msg_type == "finish":
                     self._set_ui_state(False)
                     self.progress_bar.set(1.0)
-                    self.status_label.configure(text="✅ All downloads completed successfully!", text_color="#2a9d8f")
-                    messagebox.showinfo("Done", "Download complete!")
+                    self.status_label.configure(text="Download complete", text_color=APPLE_GREEN)
+                    self.metric_label.configure(text="")
+                    messagebox.showinfo("Done", "All tracks downloaded successfully!")
                 elif msg_type == "finish_with_errors":
                     self._set_ui_state(False)
                     self.progress_bar.set(1.0)
                     self.status_label.configure(
-                        text=f"⚠️ Completed with skipped/failed tracks: {data}",
-                        text_color="#e07a5f",
+                        text=f"Finished with skipped tracks",
+                        text_color=APPLE_ORANGE,
                     )
-                    messagebox.showwarning("Download Finished with Warnings", f"Some tracks could not be downloaded:\n{data}")
+                    messagebox.showwarning("Notice", f"Some tracks could not be downloaded:\n{data}")
                 elif msg_type == "prompt_update":
                     tag, body, exe_url = data
+                    self.update_status_pill.configure(
+                        text=f"Update {tag} available",
+                        text_color=APPLE_BLUE,
+                        fg_color=APPLE_PILL_BLUE_BG,
+                    )
                     UpdateDialog(self, tag, body, exe_url)
+                elif msg_type == "update_checked":
+                    if data:
+                        self.update_status_pill.configure(
+                            text="✓ Up to date",
+                            text_color=APPLE_GREEN,
+                            fg_color=APPLE_PILL_GREEN_BG,
+                        )
+                    else:
+                        self.update_status_pill.configure(text="", fg_color="transparent")
                 self.download_queue.task_done()
         except queue.Empty:
             pass
@@ -725,18 +910,15 @@ del "%~f0"
         self.after(100, self._check_queue)
 
     def start_download_thread(self):
-        """Validate input and trigger background worker thread."""
         url = self.url_var.get().strip()
         if not url:
-            messagebox.showwarning("Missing URL", "Please enter or paste a YouTube URL.")
+            messagebox.showwarning("Missing Link", "Please enter or paste a YouTube link.")
             return
 
-        # Basic URL format check
         if not (url.startswith("http://") or url.startswith("https://")):
-            messagebox.showwarning("Invalid URL", "Please enter a valid URL starting with http:// or https://")
+            messagebox.showwarning("Invalid Link", "Please enter a valid URL starting with http:// or https://")
             return
 
-        # Refresh ffmpeg location if needed
         if not self.ffmpeg_location:
             self.ffmpeg_location = find_ffmpeg_location()
 
@@ -745,19 +927,18 @@ del "%~f0"
             try:
                 os.makedirs(save_dir, exist_ok=True)
             except Exception as e:
-                messagebox.showerror("Error", f"Could not create destination directory:\n{e}")
+                messagebox.showerror("Error", f"Could not create folder:\n{e}")
                 return
 
-        # Ensure user config remembers directory
         save_user_config(save_dir, self.bitrate_var.get())
 
-        # Parse selected bitrate (e.g. '320 kbps (Best)' -> '320')
         bitrate_str = re.findall(r"\d+", self.bitrate_var.get())
         bitrate_val = bitrate_str[0] if bitrate_str else "320"
 
         self._set_ui_state(True)
         self.progress_bar.set(0)
-        self.status_label.configure(text="Fetching video/playlist metadata...", text_color=("gray30", "gray85"))
+        self.status_label.configure(text="Fetching metadata...", text_color=APPLE_TEXT)
+        self.metric_label.configure(text="")
         self.detail_label.configure(text="Connecting to YouTube...")
 
         worker = threading.Thread(
@@ -775,7 +956,6 @@ del "%~f0"
         worker.start()
 
     def _download_worker(self, url, save_dir, bitrate, playlist_mode, embed_metadata, ffmpeg_loc):
-        """Worker thread executing yt-dlp download & conversion."""
         skipped_items = []
         current_item_index = [0]
         total_items = [1]
@@ -794,50 +974,44 @@ del "%~f0"
                         self.download_queue.put(("progress", min(0.99, overall)))
                     else:
                         self.download_queue.put(("progress", min(0.95, fraction)))
-                    percent_str = f" {fraction * 100:.1f}%"
+                    percent_str = f"{fraction * 100:.0f}%"
 
                 speed = d.get("speed")
-                speed_str = f" @ {speed / 1024 / 1024:.2f} MB/s" if speed else ""
+                speed_str = f"{speed / 1024 / 1024:.1f} MB/s" if speed else ""
                 eta = d.get("eta")
-                eta_str = f" (ETA: {eta}s)" if eta else ""
+                eta_str = f"ETA {eta}s" if eta else ""
 
                 if total_items[0] > 1:
-                    status_text = f"Downloading track {current_item_index[0]} of {total_items[0]}...{percent_str}"
+                    status_text = f"Track {current_item_index[0]} of {total_items[0]}"
                 else:
                     filename = os.path.basename(d.get("filename", "audio stream"))
                     clean_name = re.sub(r"\.[^.]+$", "", filename)
-                    status_text = f"Downloading: {clean_name[:40]}...{percent_str}"
+                    status_text = f"{clean_name[:42]}"
 
-                self.download_queue.put(("status", status_text))
-                self.download_queue.put(("detail", f"Speed: {speed_str.strip() or 'N/A'}{eta_str}"))
+                metric_text = " • ".join(filter(None, [percent_str, speed_str, eta_str]))
+                self.download_queue.put(("status_metric", (status_text, metric_text)))
 
             elif status == "finished":
-                self.download_queue.put(("status", "Converting to MP3 at selected bitrate..."))
-                self.download_queue.put(("detail", "Running FFmpeg audio extraction..."))
+                self.download_queue.put(("status", "Converting audio..."))
+                self.metric_label.configure(text="")
+                self.download_queue.put(("detail", "Extracting MP3 stream with FFmpeg..."))
 
         class MyCustomLogger:
             def __init__(self, q):
                 self.q = q
 
-            def debug(self, msg):
-                pass
-
-            def info(self, msg):
-                pass
-
+            def debug(self, msg): pass
+            def info(self, msg): pass
             def warning(self, msg):
                 if "unavailable" in msg.lower() or "private" in msg.lower():
-                    self.q.put(("warning", msg[:100]))
+                    self.q.put(("warning", msg[:80]))
+            def error(self, msg): pass
 
-            def error(self, msg):
-                pass
-
-        # Configure yt-dlp parameters
         if playlist_mode == "playlist":
             noplaylist = False
         elif playlist_mode == "single":
             noplaylist = True
-        else:  # "auto"
+        else:
             noplaylist = "list=" not in url
 
         outtmpl = os.path.join(save_dir, "%(title)s.%(ext)s")
@@ -883,42 +1057,36 @@ del "%~f0"
 
         try:
             with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                self.download_queue.put(("detail", "Extracting playlist/video information..."))
+                self.download_queue.put(("detail", "Connecting to YouTube..."))
                 try:
                     info = ydl.extract_info(url, download=False)
                 except Exception as ex:
-                    self.download_queue.put(("error", f"Could not fetch information for URL:\n{str(ex)}"))
-                    self.download_queue.put(("detail", ""))
+                    self.download_queue.put(("error", f"Could not load link:\n{str(ex)}"))
                     return
 
                 if not info:
-                    self.download_queue.put(("error", "No video or playlist found at this URL."))
-                    self.download_queue.put(("detail", ""))
+                    self.download_queue.put(("error", "No video or playlist found at this link."))
                     return
 
                 if "entries" in info:
                     entries = list(info["entries"])
                     valid_entries = [e for e in entries if e is not None]
                     total_items[0] = max(1, len(valid_entries))
-                    playlist_title = info.get("title", "YouTube Playlist")
+                    p_title = info.get("title", "Playlist")
                     self.download_queue.put(
-                        ("status", f"Found playlist: '{playlist_title}' ({total_items[0]} tracks)")
+                        ("status", f"Playlist: {p_title} ({total_items[0]} items)")
                     )
                 else:
                     total_items[0] = 1
-                    video_title = info.get("title", "Video")
-                    self.download_queue.put(("status", f"Found track: '{video_title}'"))
+                    v_title = info.get("title", "Video")
+                    self.download_queue.put(("status", f"{v_title}"))
 
                 def each_entry_hook(d):
                     if d.get("status") == "downloading" and d.get("filename"):
                         p_idx = d.get("info_dict", {}).get("playlist_index")
-                        if p_idx:
-                            current_item_index[0] = p_idx
-                        else:
-                            current_item_index[0] = 1
+                        current_item_index[0] = p_idx if p_idx else 1
 
                 ydl_opts["progress_hooks"].append(each_entry_hook)
-
                 download_result = ydl.download([url])
 
                 if download_result != 0 and len(skipped_items) > 0:
@@ -929,7 +1097,7 @@ del "%~f0"
         except yt_dlp.utils.DownloadError as de:
             self.download_queue.put(("error", f"Download failed:\n{str(de)}"))
         except Exception as e:
-            self.download_queue.put(("error", f"An unexpected error occurred:\n{str(e)}"))
+            self.download_queue.put(("error", f"Unexpected error:\n{str(e)}"))
 
 
 def main():
