@@ -1,4 +1,4 @@
-# 🎵 YouTube Downloader (v1.2.2)
+# 🎵 YouTube Downloader (v1.2.3)
 
 A clean, modern Windows desktop application for downloading YouTube videos and playlists as **MP3 audio** or **MP4 video** files, styled with Apple's Human Interface Guidelines.
 

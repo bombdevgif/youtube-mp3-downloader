@@ -33,7 +33,7 @@ def get_ytdl():
         _YTDL_MODULE = yt_dlp
     return _YTDL_MODULE
 
-APP_VERSION = "1.2.2"
+APP_VERSION = "1.2.3"
 GITHUB_REPO = "bombdevgif/youtube-mp3-downloader"
 
 # Apple HIG Hex Color Palette
