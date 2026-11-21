@@ -263,7 +263,7 @@ class UpdateDialog(ctk.CTkToplevel):
 
         btn_update = ctk.CTkButton(
             btn_frame,
-            text="Update Now",
+            text="Install Update & Restart",
             fg_color=APPLE_BLUE,
             hover_color=APPLE_BLUE_HOVER,
             corner_radius=7,
