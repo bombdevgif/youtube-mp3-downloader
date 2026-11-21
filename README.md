@@ -11,6 +11,7 @@ A clean, modern Windows desktop application for downloading YouTube videos and p
 - Modern Dark UI (`CustomTkinter`)
 - Extraction engine (`yt-dlp`)
 - Audio conversion & metadata tools (`FFmpeg`, `ffprobe`, `mutagen`, `Pillow`)
+- **Seamless In-App Auto-Updater**: Detects new releases on GitHub and downloads/updates directly inside the app!
 
 ---
 
@@ -24,42 +25,22 @@ A clean, modern Windows desktop application for downloading YouTube videos and p
 
 ## ✨ Features
 
-- **Modern Dark UI**: Clean, responsive interface built with CustomTkinter.
+- **Automatic In-App Updates**:
+  - Whenever the application launches, it automatically checks the GitHub repository for newer releases.
+  - If a newer version exists, a dialog appears showing release notes.
+  - Clicking **Update Now** downloads the new executable directly inside the app and restarts into the new version seamlessly without manual browser visits or folder extractions.
+- **Auto-Versioning & Automated GitHub Releases**:
+  - Every push to GitHub triggers a GitHub Action workflow that automatically increments the patch version (e.g., `1.0.1` -> `1.0.2`), builds the single-file binary with bundled FFmpeg, and publishes a new GitHub Release.
+- **Adaptive Responsive UI**:
+  - Automatically adjusts to any window dimensions (maximized, resized, or compact) with a scrollable container so the **Start Download** button and controls are always reachable.
+- **Remembers Selected Folder**:
+  - Automatically saves and reloads your previously chosen destination folder between sessions.
+- **Highest Bitrate by Default**:
+  - Defaults to **320 kbps (Best)** audio quality.
 - **Single Videos & Full Playlists**:
   - Automatically detects playlists.
   - Option to download either the entire playlist or just a single video (even if the link contains `&list=`).
-  - Playlist tracks are neatly organized into a dedicated subfolder named after the playlist title, prefixed with track numbers (`01 - Track Title.mp3`).
-- **Bitrate Selector**: Choose between `128 kbps`, `192 kbps` (default), or `320 kbps`.
+  - Playlist tracks are organized into dedicated subfolders named after the playlist title, prefixed with track numbers (`01 - Track Title.mp3`).
 - **Automatic ID3 Tagging & Artwork**: Embeds artist, title, album tags, and thumbnail cover art directly into the MP3.
-- **Save Location Picker**: Choose where files are saved (defaults to Windows `Downloads`). Includes a quick "Open Folder" button.
 - **Asynchronous & Non-Blocking**: Runs downloads in background threads with live progress bars, speed, ETA, and percentage counters.
 - **Resilient**: Skips deleted or private videos in playlists without halting the download batch.
-
----
-
-## 🛠️ For Developers / Building from Source
-
-If you prefer to run or build from source code:
-
-### Requirements
-- Python 3.10+
-- FFmpeg (accessible in PATH or installed via `winget install Gyan.FFmpeg`)
-
-### Setup & Run
-```powershell
-pip install -r requirements.txt
-python main.py
-```
-Or run `run.bat`.
-
-### Build Standalone Executable
-```powershell
-pyinstaller --noconfirm --onefile --windowed `
-  --name "YouTubeMP3Downloader" `
-  --icon "app_icon.ico" `
-  --add-data "<PATH_TO_CUSTOMTKINTER>;customtkinter" `
-  --add-data "app_icon.ico;." `
-  --add-binary "<PATH_TO_FFMPEG>\ffmpeg.exe;." `
-  --add-binary "<PATH_TO_FFMPEG>\ffprobe.exe;." `
-  --copy-metadata yt-dlp "main.py"
-```

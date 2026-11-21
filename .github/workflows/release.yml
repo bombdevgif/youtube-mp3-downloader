@@ -1,0 +1,124 @@
+name: Build and Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - 'README.md'
+      - '.gitignore'
+      - 'version.json'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Specific version tag (e.g. 1.0.2). Leave empty for auto-increment.'
+        required: false
+        default: ''
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install FFmpeg
+        run: |
+          winget install -e --id Gyan.FFmpeg --accept-package-agreements --accept-source-agreements
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt pyinstaller
+
+      - name: Determine Next Version
+        id: versioning
+        shell: pwsh
+        run: |
+          $manualVersion = "${{ github.event.inputs.version }}"
+          if ($manualVersion -ne "") {
+            $tag = if ($manualVersion.StartsWith("v")) { $manualVersion } else { "v$manualVersion" }
+          } else {
+            # Find latest tag
+            $latestTag = git tag -l --sort=-v:refname "v*" | Select-Object -First 1
+            if (-not $latestTag) {
+              $tag = "v1.0.1"
+            } else {
+              $clean = $latestTag.TrimStart('v')
+              $parts = $clean.Split('.')
+              if ($parts.Count -eq 3) {
+                $major = [int]$parts[0]
+                $minor = [int]$parts[1]
+                $patch = [int]$parts[2] + 1
+                $tag = "v$major.$minor.$patch"
+              } elseif ($parts.Count -eq 2) {
+                $major = [int]$parts[0]
+                $patch = [int]$parts[1] + 1
+                $tag = "v$major.0.$patch"
+              } else {
+                $tag = "v1.0.1"
+              }
+            }
+          }
+          Write-Host "Next Release Version: $tag"
+          "version=$tag" >> $env:GITHUB_OUTPUT
+          "clean_version=$($tag.TrimStart('v'))" >> $env:GITHUB_OUTPUT
+
+      - name: Update version.json
+        shell: pwsh
+        run: |
+          $ver = "${{ steps.versioning.outputs.clean_version }}"
+          @{ version = $ver } | ConvertTo-Json | Set-Content version.json
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add version.json
+          git commit -m "Bump version to ${{ steps.versioning.outputs.version }} [skip ci]" || $true
+          git push origin main || $true
+
+      - name: Locate FFmpeg binaries
+        id: ffmpeg_path
+        shell: pwsh
+        run: |
+          $ffmpegExe = (Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "ffmpeg.exe" | Select-Object -First 1).FullName
+          $ffprobeExe = (Get-ChildItem -Path "$env:LOCALAPPDATA\Microsoft\WinGet\Packages" -Recurse -Filter "ffprobe.exe" | Select-Object -First 1).FullName
+          Write-Host "FFmpeg: $ffmpegExe"
+          Write-Host "FFprobe: $ffprobeExe"
+          "ffmpeg=$ffmpegExe" >> $env:GITHUB_OUTPUT
+          "ffprobe=$ffprobeExe" >> $env:GITHUB_OUTPUT
+
+      - name: Build Standalone Executable
+        shell: pwsh
+        run: |
+          $ctkPath = python -c "import customtkinter, os; print(os.path.dirname(customtkinter.__file__))"
+          pyinstaller --noconfirm --onefile --windowed `
+            --name "YouTubeMP3Downloader" `
+            --icon "app_icon.ico" `
+            --add-data "$ctkPath;customtkinter" `
+            --add-data "app_icon.ico;." `
+            --add-data "version.json;." `
+            --add-binary "${{ steps.ffmpeg_path.outputs.ffmpeg }};." `
+            --add-binary "${{ steps.ffmpeg_path.outputs.ffprobe }};." `
+            --copy-metadata yt-dlp "main.py"
+
+      - name: Create GitHub Release and Upload Asset
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ steps.versioning.outputs.version }}
+          name: "YouTube to MP3 Downloader ${{ steps.versioning.outputs.version }}"
+          body: |
+            ### Automated Release: ${{ steps.versioning.outputs.version }}
+            - Fully standalone single executable (zero dependencies required).
+            - Bundles Python, CustomTkinter, yt-dlp, FFmpeg, and built-in auto-updater.
+          files: dist/YouTubeMP3Downloader.exe
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

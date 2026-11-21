@@ -10,6 +10,9 @@ import json
 import shutil
 import threading
 import queue
+import urllib.request
+import urllib.error
+import subprocess
 import tkinter as tk
 from tkinter import filedialog, messagebox
 
@@ -19,6 +22,9 @@ except ImportError:
     import tkinter as ctk
 
 import yt_dlp
+
+APP_VERSION = "1.0.1"
+GITHUB_REPO = "bombdevgif/youtube-mp3-downloader"
 
 # Set appearance and theme
 ctk.set_appearance_mode("Dark")
@@ -32,6 +38,32 @@ def resource_path(relative_path):
     except AttributeError:
         base_path = os.path.dirname(os.path.abspath(__file__))
     return os.path.join(base_path, relative_path)
+
+
+def get_current_version():
+    """Read version from version.json if available, else fallback to constant."""
+    v_file = resource_path("version.json")
+    if os.path.isfile(v_file):
+        try:
+            with open(v_file, "r", encoding="utf-8") as f:
+                data = json.load(f)
+                return data.get("version", APP_VERSION)
+        except Exception:
+            pass
+    return APP_VERSION
+
+
+def parse_version_tuple(v_str):
+    """Parse version string like 'v1.0.3' or '1.0.3' into tuple (1, 0, 3)."""
+    clean = v_str.lstrip("v").strip()
+    parts = clean.split(".")
+    res = []
+    for p in parts:
+        nums = re.findall(r"\d+", p)
+        res.append(int(nums[0]) if nums else 0)
+    while len(res) < 3:
+        res.append(0)
+    return tuple(res)
 
 
 def get_config_path():
@@ -84,7 +116,6 @@ def save_user_config(save_dir, bitrate=None):
 
 def find_ffmpeg_location():
     """Detect ffmpeg binary location (bundled inside app, local folder, PATH, or WinGet)."""
-    # 0. Check PyInstaller bundled directory / current application directory
     bundled_ffmpeg = resource_path("ffmpeg.exe")
     if os.path.isfile(bundled_ffmpeg):
         return os.path.dirname(os.path.abspath(bundled_ffmpeg))
@@ -93,12 +124,10 @@ def find_ffmpeg_location():
     if os.path.isfile(os.path.join(app_dir, "ffmpeg.exe")):
         return app_dir
 
-    # 1. Standard PATH check
     path_ffmpeg = shutil.which("ffmpeg")
     if path_ffmpeg:
         return os.path.dirname(os.path.abspath(path_ffmpeg))
 
-    # 2. Check WinGet package directories
     user_profile = os.environ.get("USERPROFILE", "")
     candidates = [
         os.path.join(user_profile, "AppData", "Local", "Microsoft", "WinGet", "Links"),
@@ -120,7 +149,6 @@ def find_ffmpeg_location():
         if os.path.isfile(os.path.join(candidate, "ffmpeg.exe")):
             return candidate
 
-    # Search in WinGet directory dynamically if not found yet
     winget_packages = os.path.join(user_profile, "AppData", "Local", "Microsoft", "WinGet", "Packages")
     if os.path.isdir(winget_packages):
         for root, _, files in os.walk(winget_packages):
@@ -130,11 +158,79 @@ def find_ffmpeg_location():
     return None
 
 
+class UpdateDialog(ctk.CTkToplevel):
+    """Modern popup asking user if they want to download the new update."""
+    def __init__(self, parent, latest_tag, release_notes, download_url):
+        super().__init__(parent)
+        self.title("New Update Available")
+        self.geometry("520x360")
+        self.minsize(450, 300)
+        self.parent = parent
+        self.download_url = download_url
+        self.latest_tag = latest_tag
+
+        self.transient(parent)
+        self.grab_set()
+
+        self.grid_columnconfigure(0, weight=1)
+        self.grid_rowconfigure(2, weight=1)
+
+        # Header
+        lbl_title = ctk.CTkLabel(
+            self,
+            text=f"🚀 Update Available: {latest_tag}",
+            font=ctk.CTkFont(size=18, weight="bold"),
+        )
+        lbl_title.pack(anchor="w", padx=20, pady=(20, 5))
+
+        lbl_desc = ctk.CTkLabel(
+            self,
+            text=f"A newer version of YouTube MP3 Downloader is available on GitHub.\nWould you like to download and install it now inside the app?",
+            justify="left",
+            font=ctk.CTkFont(size=12),
+        )
+        lbl_desc.pack(anchor="w", padx=20, pady=(0, 10))
+
+        # Release Notes Preview
+        notes_box = ctk.CTkTextbox(self, height=130, font=ctk.CTkFont(size=11))
+        notes_box.pack(fill="both", expand=True, padx=20, pady=5)
+        notes_box.insert("1.0", release_notes or "Bug fixes and improvements.")
+        notes_box.configure(state="disabled")
+
+        # Buttons
+        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
+        btn_frame.pack(fill="x", padx=20, pady=(10, 20))
+
+        btn_update = ctk.CTkButton(
+            btn_frame,
+            text="⬇ Update Now (In-App)",
+            fg_color="#2a9d8f",
+            hover_color="#21867a",
+            font=ctk.CTkFont(size=13, weight="bold"),
+            command=self._on_update,
+        )
+        btn_update.pack(side="right", padx=(10, 0))
+
+        btn_later = ctk.CTkButton(
+            btn_frame,
+            text="Later",
+            fg_color=("gray60", "gray35"),
+            hover_color=("gray50", "gray45"),
+            command=self.destroy,
+        )
+        btn_later.pack(side="right")
+
+    def _on_update(self):
+        self.destroy()
+        self.parent.start_in_app_update(self.download_url, self.latest_tag)
+
+
 class YouTubeMP3Downloader(ctk.CTk):
     def __init__(self):
         super().__init__()
 
-        self.title("YouTube to MP3 Downloader")
+        self.current_version = get_current_version()
+        self.title(f"YouTube to MP3 Downloader (v{self.current_version})")
         self.geometry("740x660")
         self.minsize(580, 480)
 
@@ -169,12 +265,15 @@ class YouTubeMP3Downloader(ctk.CTk):
         self._check_queue()
         self._check_initial_ffmpeg()
 
+        # Trigger automatic background check for new releases
+        self.after(1500, self.check_for_updates_background)
+
     def _build_ui(self):
         # Configure layout grid
         self.grid_columnconfigure(0, weight=1)
         self.grid_rowconfigure(0, weight=1)
 
-        # Main Scrollable Frame - ensures all controls, buttons & inputs adapt gracefully to any window size
+        # Main Scrollable Frame - ensures all controls adapt gracefully to any window size
         self.scroll_frame = ctk.CTkScrollableFrame(
             self,
             corner_radius=15,
@@ -187,12 +286,23 @@ class YouTubeMP3Downloader(ctk.CTk):
         header_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         header_frame.pack(fill="x", padx=10, pady=(15, 8))
 
+        top_row = ctk.CTkFrame(header_frame, fg_color="transparent")
+        top_row.pack(fill="x")
+
         title_label = ctk.CTkLabel(
-            header_frame,
+            top_row,
             text="🎵 YouTube to MP3 Downloader",
             font=ctk.CTkFont(size=23, weight="bold"),
         )
-        title_label.pack(anchor="w")
+        title_label.pack(side="left")
+
+        self.ver_label = ctk.CTkLabel(
+            top_row,
+            text=f"v{self.current_version}",
+            font=ctk.CTkFont(size=12, weight="bold"),
+            text_color="#2a9d8f",
+        )
+        self.ver_label.pack(side="left", padx=10)
 
         subtitle_label = ctk.CTkLabel(
             header_frame,
@@ -265,7 +375,6 @@ class YouTubeMP3Downloader(ctk.CTk):
             width=180,
             command=self._on_bitrate_changed,
         )
-        # Normalize display if needed
         cur_b = self.bitrate_var.get()
         if "320" in cur_b:
             self.bitrate_var.set("320 kbps (Best)")
@@ -405,6 +514,100 @@ class YouTubeMP3Downloader(ctk.CTk):
         )
         self.open_folder_btn.pack(side="right")
 
+    # ---------------- Automatic Update Logic ----------------
+    def check_for_updates_background(self):
+        """Worker thread to query GitHub API for releases."""
+        def _check():
+            try:
+                url = f"https://api.github.com/repos/{GITHUB_REPO}/releases/latest"
+                req = urllib.request.Request(url, headers={"User-Agent": "YouTubeMP3Downloader-App"})
+                with urllib.request.urlopen(req, timeout=5) as resp:
+                    if resp.status == 200:
+                        data = json.loads(resp.read().decode("utf-8"))
+                        tag = data.get("tag_name", "")
+                        body = data.get("body", "")
+                        assets = data.get("assets", [])
+
+                        current_v = parse_version_tuple(self.current_version)
+                        latest_v = parse_version_tuple(tag)
+
+                        if latest_v > current_v:
+                            # Look for .exe asset
+                            exe_url = None
+                            for a in assets:
+                                if a.get("name", "").endswith(".exe"):
+                                    exe_url = a.get("browser_download_url")
+                                    break
+                            if exe_url:
+                                self.download_queue.put(("prompt_update", (tag, body, exe_url)))
+            except Exception:
+                # Silently skip if user is offline or rate limited
+                pass
+
+        threading.Thread(target=_check, daemon=True).start()
+
+    def start_in_app_update(self, download_url, latest_tag):
+        """Download update in-app and restart seamlessly."""
+        self._set_ui_state(True)
+        self.download_btn.configure(text="⬇ Updating App...", state="disabled")
+        self.status_label.configure(text=f"Downloading update {latest_tag} in-app...", text_color="#2a9d8f")
+        self.progress_bar.set(0)
+
+        def _update_worker():
+            try:
+                app_exe = sys.executable if getattr(sys, "frozen", False) else os.path.abspath(__file__)
+                temp_update_exe = os.path.join(os.environ.get("TEMP", os.getcwd()), f"Update_{latest_tag}.exe")
+
+                req = urllib.request.Request(download_url, headers={"User-Agent": "YouTubeMP3Downloader-App"})
+                with urllib.request.urlopen(req, timeout=30) as response, open(temp_update_exe, "wb") as out_file:
+                    total_length = response.getheader("content-length")
+                    if total_length:
+                        total_length = int(total_length)
+                    downloaded = 0
+                    chunk_size = 1024 * 64
+
+                    while True:
+                        chunk = response.read(chunk_size)
+                        if not chunk:
+                            break
+                        downloaded += len(chunk)
+                        out_file.write(chunk)
+                        if total_length:
+                            progress = downloaded / total_length
+                            self.download_queue.put(("progress", progress))
+                            mb_down = downloaded / (1024 * 1024)
+                            mb_tot = total_length / (1024 * 1024)
+                            self.download_queue.put(
+                                ("status", f"Downloading update {latest_tag}: {mb_down:.1f} MB / {mb_tot:.1f} MB ({progress*100:.0f}%)")
+                            )
+
+                self.download_queue.put(("status", "Update downloaded! Applying update and restarting..."))
+                self.download_queue.put(("progress", 1.0))
+
+                # Launch updater script to replace current running executable and restart it
+                if getattr(sys, "frozen", False):
+                    bat_content = f"""@echo off
+timeout /t 2 /nobreak >nul
+move /y "{temp_update_exe}" "{app_exe}"
+start "" "{app_exe}"
+del "%~f0"
+"""
+                    bat_path = os.path.join(os.environ.get("TEMP", os.getcwd()), "apply_update.bat")
+                    with open(bat_path, "w", encoding="utf-8") as f:
+                        f.write(bat_content)
+
+                    subprocess.Popen(["cmd.exe", "/c", bat_path], creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0)
+                    self.after(500, self.destroy)
+                else:
+                    self.download_queue.put(("finish", ""))
+                    messagebox.showinfo("Update Downloaded", f"Update downloaded to:\n{temp_update_exe}")
+
+            except Exception as e:
+                self.download_queue.put(("error", f"Update download failed:\n{str(e)}"))
+                self._set_ui_state(False)
+
+        threading.Thread(target=_update_worker, daemon=True).start()
+
     def _check_initial_ffmpeg(self):
         """Notify user if ffmpeg was not detected."""
         if not self.ffmpeg_location:
@@ -512,6 +715,9 @@ class YouTubeMP3Downloader(ctk.CTk):
                         text_color="#e07a5f",
                     )
                     messagebox.showwarning("Download Finished with Warnings", f"Some tracks could not be downloaded:\n{data}")
+                elif msg_type == "prompt_update":
+                    tag, body, exe_url = data
+                    UpdateDialog(self, tag, body, exe_url)
                 self.download_queue.task_done()
         except queue.Empty:
             pass
@@ -582,7 +788,6 @@ class YouTubeMP3Downloader(ctk.CTk):
                 percent_str = ""
                 if total_bytes > 0:
                     fraction = min(1.0, max(0.0, downloaded / total_bytes))
-                    # Overall progress calculation if playlist
                     if total_items[0] > 1:
                         track_slice = 1.0 / total_items[0]
                         overall = (current_item_index[0] - 1) * track_slice + fraction * track_slice
