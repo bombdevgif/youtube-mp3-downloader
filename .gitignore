@@ -12,3 +12,8 @@ dist/
 # Logs & temp
 *.log
 .system_generated/
+
+
+# Added by cargo
+
+/target
